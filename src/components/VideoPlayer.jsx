@@ -1,20 +1,26 @@
 // src/components/VideoPlayer.jsx
 import React, { useRef, useState, useEffect } from 'react';
 
-function VideoPlayer({ src, subtitle, onPlay }) {
+function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
   const videoRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState('');
-  const [subtitles, setSubtitles] = useState([]);
+  const [subtitleCues, setSubtitleCues] = useState([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    // Parse subtitles if provided
+    // Parse subtitle data if provided
     if (subtitle && subtitle.text) {
-      if (subtitle.type === 'cues' && Array.isArray(subtitle.cues)) {
-        setSubtitles(subtitle.cues);
+      if (subtitle.cues && Array.isArray(subtitle.cues)) {
+        setSubtitleCues(subtitle.cues);
       } else if (subtitle.text) {
-        // Simple static subtitle
-        setCurrentSubtitle(subtitle.text);
+        // Simple static subtitle with timing
+        const cues = [{
+          text: subtitle.text,
+          start: subtitle.start || 0,
+          end: (subtitle.start || 0) + (subtitle.duration || 5)
+        }];
+        setSubtitleCues(cues);
       }
     }
   }, [subtitle]);
@@ -29,12 +35,12 @@ function VideoPlayer({ src, subtitle, onPlay }) {
   };
 
   const handleTimeUpdate = () => {
-    if (subtitles.length > 0 && videoRef.current) {
+    if (videoRef.current && subtitleCues.length > 0) {
       const currentTime = videoRef.current.currentTime;
-      const activeSubtitle = subtitles.find(
-        sub => currentTime >= sub.start && currentTime <= sub.end
+      const activeCue = subtitleCues.find(
+        cue => currentTime >= cue.start && currentTime <= cue.end
       );
-      setCurrentSubtitle(activeSubtitle ? activeSubtitle.text : '');
+      setCurrentSubtitle(activeCue ? activeCue.text : '');
     }
   };
 
@@ -48,20 +54,56 @@ function VideoPlayer({ src, subtitle, onPlay }) {
     }
   };
 
-  // Handle fullscreen on tap/click
-  const handleFullScreen = () => {
+  const handleFullscreen = () => {
     if (videoRef.current) {
-      if (videoRef.current.requestFullscreen) {
-        videoRef.current.requestFullscreen();
-      } else if (videoRef.current.webkitRequestFullscreen) {
-        videoRef.current.webkitRequestFullscreen();
+      if (!isFullscreen) {
+        if (videoRef.current.requestFullscreen) {
+          videoRef.current.requestFullscreen();
+        } else if (videoRef.current.webkitRequestFullscreen) {
+          videoRef.current.webkitRequestFullscreen();
+        }
+        setIsFullscreen(true);
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+          setIsFullscreen(false);
+        }
       }
-      videoRef.current.play();
     }
   };
 
+  // Subtitle style with neon effect
+  const subtitleStyle = {
+    position: 'absolute',
+    bottom: subtitle?.position === 'top' ? 'auto' : '15%',
+    top: subtitle?.position === 'top' ? '10%' : 'auto',
+    left: '0',
+    right: '0',
+    textAlign: 'center',
+    pointerEvents: 'none',
+    zIndex: 10,
+    fontSize: `${subtitle?.size || 24}px`,
+    fontWeight: 'bold',
+    color: 'white',
+    textShadow: `0 0 10px ${subtitle?.color || '#ff006e'}, 0 0 20px ${subtitle?.color || '#ff006e'}, 0 0 30px ${subtitle?.color || '#ff006e'}`,
+    animation: 'neonPulse 1.5s ease-in-out infinite alternate',
+    padding: '10px',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: '8px',
+    display: 'inline-block',
+    width: 'auto',
+    maxWidth: '80%',
+    margin: '0 auto',
+    transform: 'translateX(-50%)',
+    left: '50%'
+  };
+
   return (
-    <div className="video-container" onClick={handleFullScreen}>
+    <div 
+      className="video-container" 
+      style={{ position: 'relative', width: '100%', cursor: 'pointer' }}
+      onClick={handleFullscreen}
+    >
       <video
         ref={videoRef}
         src={src}
@@ -71,14 +113,25 @@ function VideoPlayer({ src, subtitle, onPlay }) {
         controls
         playsInline
         preload="metadata"
+        style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'cover' }}
       >
         Your browser does not support the video tag.
       </video>
       {currentSubtitle && (
-        <div className="video-subtitle">
+        <div style={subtitleStyle}>
           {currentSubtitle}
         </div>
       )}
+      <style>{`
+        @keyframes neonPulse {
+          from {
+            text-shadow: 0 0 5px ${subtitle?.color || '#ff006e'}, 0 0 10px ${subtitle?.color || '#ff006e'};
+          }
+          to {
+            text-shadow: 0 0 15px ${subtitle?.color || '#ff006e'}, 0 0 25px ${subtitle?.color || '#ff006e'}, 0 0 35px ${subtitle?.color || '#ff006e'};
+          }
+        }
+      `}</style>
     </div>
   );
 }
