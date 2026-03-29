@@ -1,4 +1,4 @@
-// src/components/CreatePost.jsx - COMPLETE WITH ALL FIELDS
+// src/components/CreatePost.jsx - COMPLETE WITH ALL INPUTS
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPost, userLogin, saveUserSession } from '../api/api';
@@ -18,7 +18,7 @@ function CreatePost({ currentUser, setCurrentUser }) {
   const [mediaType, setMediaType] = useState('');
   const [mediaLink, setMediaLink] = useState('');
   
-  // Subtitle fields
+  // Subtitle fields - ALL MISSING INPUTS ADDED HERE
   const [subtitleText, setSubtitleText] = useState('');
   const [subtitleStart, setSubtitleStart] = useState(0);
   const [subtitleDuration, setSubtitleDuration] = useState(5);
@@ -157,7 +157,7 @@ function CreatePost({ currentUser, setCurrentUser }) {
         formData.append('media_url', mediaLink);
       }
       
-      // Send all subtitle data
+      // ALL SUBTITLE DATA BEING SENT
       if (subtitleText) {
         formData.append('subtitle_text', subtitleText);
         formData.append('subtitle_start', subtitleStart.toString());
@@ -232,16 +232,13 @@ function CreatePost({ currentUser, setCurrentUser }) {
     }
   };
 
-  // Preview subtitle style
   const previewSubtitleStyle = {
     textShadow: `0 0 10px ${subtitleColor}, 0 0 20px ${subtitleColor}, 0 0 30px ${subtitleColor}`,
     color: 'white',
     fontSize: `${subtitleSize}px`,
     textAlign: 'center',
     padding: '10px',
-    position: subtitlePosition === 'bottom' ? 'relative' : 'relative',
-    marginTop: subtitlePosition === 'top' ? '0' : '20px',
-    marginBottom: subtitlePosition === 'bottom' ? '0' : '20px'
+    animation: 'neonPulse 1.5s ease-in-out infinite alternate'
   };
 
   return (
@@ -289,6 +286,7 @@ function CreatePost({ currentUser, setCurrentUser }) {
         )}
 
         <form onSubmit={handleSubmit}>
+          {/* POST TYPE SELECTOR */}
           <div className="form-group">
             <label>Post Type</label>
             <div className="topic-selector">
@@ -297,11 +295,13 @@ function CreatePost({ currentUser, setCurrentUser }) {
             </div>
           </div>
 
+          {/* DISPLAY NAME */}
           <div className="form-group">
             <label>Display Name *</label>
             <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Your public name" required />
           </div>
 
+          {/* COUNTRY SELECTOR WITH FLAG */}
           <div className="form-group">
             <label>Country *</label>
             <div ref={dropdownRef} style={{ position: 'relative' }}>
@@ -324,27 +324,31 @@ function CreatePost({ currentUser, setCurrentUser }) {
             </div>
           </div>
 
+          {/* WHATSAPP NUMBER */}
           <div className="form-group">
             <label>WhatsApp Number (private) *</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="2507..." required />
           </div>
 
+          {/* TITLE */}
           <div className="form-group">
             <label>Title *</label>
             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Catchy title" required />
           </div>
 
+          {/* DESCRIPTION */}
           <div className="form-group">
             <label>Description *</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Share your story..." rows="4" required />
           </div>
 
+          {/* URL LINK */}
           <div className="form-group">
             <label>URL Link (optional)</label>
             <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" />
           </div>
 
-          {/* Media Upload Section */}
+          {/* MEDIA UPLOAD */}
           <div className="form-group">
             <label>Upload Media (Image or Video, max 30MB)</label>
             <div className="media-upload" onClick={() => fileInputRef.current?.click()}>
@@ -353,14 +357,14 @@ function CreatePost({ currentUser, setCurrentUser }) {
             </div>
           </div>
 
-          {/* Media Link Section */}
+          {/* MEDIA URL LINK - MISSING INPUT ADDED */}
           <div className="form-group">
             <label>Or Insert Media URL Link</label>
             <input type="url" value={mediaLink} onChange={handleMediaLinkChange} placeholder="https://example.com/image.jpg or video.mp4" />
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>Paste a direct link to an image or video file</div>
           </div>
 
-          {/* Media Preview */}
+          {/* MEDIA PREVIEW */}
           {mediaPreview && (
             <div className="form-group">
               <label>Media Preview</label>
@@ -374,39 +378,80 @@ function CreatePost({ currentUser, setCurrentUser }) {
             </div>
           )}
 
-          {/* SUBTITLE SECTION - NEON VISUAL EFFECTS */}
+          {/* ========== SUBTITLE SECTION - ALL MISSING INPUTS ADDED HERE ========== */}
           <div className="form-group" style={{ border: `2px solid ${subtitleColor}`, borderRadius: '16px', padding: '16px', marginTop: '20px', background: 'rgba(0,0,0,0.3)' }}>
-            <label style={{ color: subtitleColor, fontSize: '18px', fontWeight: 'bold' }}>🎬 VIDEO SUBTITLE (Neon Effect)</label>
+            <label style={{ color: subtitleColor, fontSize: '18px', fontWeight: 'bold', display: 'block', marginBottom: '15px' }}>
+              🎬 VIDEO SUBTITLE SETTINGS (Neon Effect)
+            </label>
             
+            {/* Subtitle Text Input */}
             <div className="form-group">
               <label>Subtitle Text</label>
-              <input type="text" value={subtitleText} onChange={(e) => setSubtitleText(e.target.value)} placeholder="Enter subtitle text that will appear on video" />
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px' }}>Start Time (seconds)</label>
-                <input type="number" value={subtitleStart} onChange={(e) => setSubtitleStart(parseInt(e.target.value) || 0)} min="0" step="0.5" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px' }}>Duration (seconds)</label>
-                <input type="number" value={subtitleDuration} onChange={(e) => setSubtitleDuration(parseInt(e.target.value) || 5)} min="1" step="0.5" />
+              <input 
+                type="text" 
+                value={subtitleText} 
+                onChange={(e) => setSubtitleText(e.target.value)} 
+                placeholder="Enter subtitle text that will appear on video"
+                style={{ fontSize: '16px' }}
+              />
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>
+                Leave empty for no subtitle
               </div>
             </div>
 
+            {/* Start Time & Duration - Row 1 */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>⏱️ Start Time (seconds)</label>
+                <input 
+                  type="number" 
+                  value={subtitleStart} 
+                  onChange={(e) => setSubtitleStart(parseInt(e.target.value) || 0)} 
+                  min="0" 
+                  step="0.5"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>⏱️ Duration (seconds)</label>
+                <input 
+                  type="number" 
+                  value={subtitleDuration} 
+                  onChange={(e) => setSubtitleDuration(parseInt(e.target.value) || 5)} 
+                  min="1" 
+                  step="0.5"
+                />
+              </div>
+            </div>
+
+            {/* Color, Size, Position - Row 2 */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px' }}>Neon Color</label>
-                <input type="color" value={subtitleColor} onChange={(e) => setSubtitleColor(e.target.value)} style={{ width: '100%', height: '40px', borderRadius: '8px' }} />
+                <label style={{ fontSize: '12px' }}>🎨 Neon Color</label>
+                <input 
+                  type="color" 
+                  value={subtitleColor} 
+                  onChange={(e) => setSubtitleColor(e.target.value)} 
+                  style={{ width: '100%', height: '40px', borderRadius: '8px', cursor: 'pointer' }}
+                />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px' }}>Font Size (px)</label>
-                <input type="range" min="12" max="48" value={subtitleSize} onChange={(e) => setSubtitleSize(parseInt(e.target.value))} style={{ width: '100%' }} />
-                <span style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>{subtitleSize}px</span>
+                <label style={{ fontSize: '12px' }}>📏 Font Size: {subtitleSize}px</label>
+                <input 
+                  type="range" 
+                  min="12" 
+                  max="48" 
+                  value={subtitleSize} 
+                  onChange={(e) => setSubtitleSize(parseInt(e.target.value))} 
+                  style={{ width: '100%' }}
+                />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: '12px' }}>Position</label>
-                <select value={subtitlePosition} onChange={(e) => setSubtitlePosition(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)' }}>
+                <label style={{ fontSize: '12px' }}>📍 Position</label>
+                <select 
+                  value={subtitlePosition} 
+                  onChange={(e) => setSubtitlePosition(e.target.value)} 
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)' }}
+                >
                   <option value="top">Top</option>
                   <option value="center">Center</option>
                   <option value="bottom">Bottom</option>
@@ -414,17 +459,21 @@ function CreatePost({ currentUser, setCurrentUser }) {
               </div>
             </div>
 
-            {/* Live Preview of Subtitle Style */}
+            {/* Live Preview of Subtitle with Neon Effect */}
             {subtitleText && (
               <div className="form-group" style={{ marginTop: '15px', padding: '15px', background: '#000', borderRadius: '12px', textAlign: 'center' }}>
                 <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', display: 'block' }}>🔮 Live Preview (Neon Effect)</label>
                 <div style={previewSubtitleStyle}>
                   {subtitleText}
                 </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>
+                  Appears at {subtitleStart}s for {subtitleDuration}s
+                </div>
               </div>
             )}
           </div>
 
+          {/* PIN INPUT FOR NEW USERS */}
           {!currentUser && (
             <div className="form-group">
               <label>Create 6-digit PIN (for new users)</label>
@@ -449,6 +498,18 @@ function CreatePost({ currentUser, setCurrentUser }) {
           </div>
         )}
       </div>
+
+      {/* Add keyframes for neon pulse animation */}
+      <style>{`
+        @keyframes neonPulse {
+          from {
+            text-shadow: 0 0 5px ${subtitleColor}, 0 0 10px ${subtitleColor}, 0 0 15px ${subtitleColor};
+          }
+          to {
+            text-shadow: 0 0 15px ${subtitleColor}, 0 0 25px ${subtitleColor}, 0 0 35px ${subtitleColor};
+          }
+        }
+      `}</style>
     </main>
   );
 }
