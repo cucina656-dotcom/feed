@@ -1,4 +1,4 @@
-// src/components/CreatePost.jsx
+// src/components/CreatePost.jsx - COMPLETE WITH ALL FIELDS
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPost, userLogin, saveUserSession } from '../api/api';
@@ -14,6 +14,18 @@ function CreatePost({ currentUser, setCurrentUser }) {
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
   const [media, setMedia] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState('');
+  const [mediaType, setMediaType] = useState('');
+  const [mediaLink, setMediaLink] = useState('');
+  
+  // Subtitle fields
+  const [subtitleText, setSubtitleText] = useState('');
+  const [subtitleStart, setSubtitleStart] = useState(0);
+  const [subtitleDuration, setSubtitleDuration] = useState(5);
+  const [subtitleColor, setSubtitleColor] = useState('#ff006e');
+  const [subtitleSize, setSubtitleSize] = useState(24);
+  const [subtitlePosition, setSubtitlePosition] = useState('bottom');
+  
   const [pin, setPin] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', message: '' });
@@ -26,7 +38,6 @@ function CreatePost({ currentUser, setCurrentUser }) {
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Filter countries based on search term
   const filteredCountries = countries.filter(country =>
     country.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -38,8 +49,6 @@ function CreatePost({ currentUser, setCurrentUser }) {
       const newPin = [...pin];
       newPin[index] = value;
       setPin(newPin);
-      
-      // Auto-focus next input
       if (value && index < 5) {
         const nextInput = document.getElementById(`pin-${index + 1}`);
         if (nextInput) nextInput.focus();
@@ -52,7 +61,6 @@ function CreatePost({ currentUser, setCurrentUser }) {
       const newPin = [...loginPin];
       newPin[index] = value;
       setLoginPin(newPin);
-      
       if (value && index < 5) {
         const nextInput = document.getElementById(`login-pin-${index + 1}`);
         if (nextInput) nextInput.focus();
@@ -75,13 +83,32 @@ function CreatePost({ currentUser, setCurrentUser }) {
         return;
       }
       setMedia(file);
+      setMediaLink('');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMediaPreview(reader.result);
+        setMediaType(file.type.startsWith('video/') ? 'video' : 'image');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleMediaLinkChange = (e) => {
+    const link = e.target.value;
+    setMediaLink(link);
+    if (link) {
+      setMedia(null);
+      setMediaPreview(link);
+      const videoExtensions = /\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/i;
+      setMediaType(videoExtensions.test(link) ? 'video' : 'image');
+    } else {
+      setMediaPreview('');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
     if (!userName.trim()) {
       setStatus({ type: 'error', message: 'Please enter your display name' });
       return;
@@ -123,9 +150,23 @@ function CreatePost({ currentUser, setCurrentUser }) {
       formData.append('description', description);
       formData.append('type', postType);
       formData.append('url', url);
+      
       if (media) {
         formData.append('media', media);
+      } else if (mediaLink) {
+        formData.append('media_url', mediaLink);
       }
+      
+      // Send all subtitle data
+      if (subtitleText) {
+        formData.append('subtitle_text', subtitleText);
+        formData.append('subtitle_start', subtitleStart.toString());
+        formData.append('subtitle_duration', subtitleDuration.toString());
+        formData.append('subtitle_color', subtitleColor);
+        formData.append('subtitle_size', subtitleSize.toString());
+        formData.append('subtitle_position', subtitlePosition);
+      }
+      
       if (pinValue) {
         formData.append('pin', pinValue);
       }
@@ -133,7 +174,6 @@ function CreatePost({ currentUser, setCurrentUser }) {
       const result = await createPost(formData);
       
       if (result.ok) {
-        // If new user, auto-login
         if (!currentUser && pinValue) {
           try {
             const loginResult = await userLogin(phoneNumber, pinValue);
@@ -192,6 +232,18 @@ function CreatePost({ currentUser, setCurrentUser }) {
     }
   };
 
+  // Preview subtitle style
+  const previewSubtitleStyle = {
+    textShadow: `0 0 10px ${subtitleColor}, 0 0 20px ${subtitleColor}, 0 0 30px ${subtitleColor}`,
+    color: 'white',
+    fontSize: `${subtitleSize}px`,
+    textAlign: 'center',
+    padding: '10px',
+    position: subtitlePosition === 'bottom' ? 'relative' : 'relative',
+    marginTop: subtitlePosition === 'top' ? '0' : '20px',
+    marginBottom: subtitlePosition === 'bottom' ? '0' : '20px'
+  };
+
   return (
     <main className="container">
       <div className="create-post-form">
@@ -219,40 +271,19 @@ function CreatePost({ currentUser, setCurrentUser }) {
             <h3 style={{ marginBottom: '15px' }}>Login to Your Account</h3>
             <div className="form-group">
               <label>WhatsApp Number</label>
-              <input
-                type="tel"
-                value={loginPhone}
-                onChange={(e) => setLoginPhone(e.target.value)}
-                placeholder="2507..."
-                required
-              />
+              <input type="tel" value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="2507..." required />
             </div>
             <div className="form-group">
               <label>6-digit PIN</label>
               <div className="pin-input-container">
                 {loginPin.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    id={`login-pin-${idx}`}
-                    type="tel"
-                    maxLength="1"
-                    className="pin-digit"
-                    value={digit}
-                    onChange={(e) => handleLoginPinChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, idx, true)}
-                    pattern="[0-9]"
-                    required
-                  />
+                  <input key={idx} id={`login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx, true)} pattern="[0-9]" required />
                 ))}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit" className="btn primary" disabled={loading}>
-                {loading ? '⏳ Logging in...' : 'Login'}
-              </button>
-              <button type="button" className="btn" onClick={() => setShowLoginForm(false)}>
-                Cancel
-              </button>
+              <button type="submit" className="btn primary" disabled={loading}>{loading ? '⏳ Logging in...' : 'Login'}</button>
+              <button type="button" className="btn" onClick={() => setShowLoginForm(false)}>Cancel</button>
             </div>
           </form>
         )}
@@ -261,105 +292,29 @@ function CreatePost({ currentUser, setCurrentUser }) {
           <div className="form-group">
             <label>Post Type</label>
             <div className="topic-selector">
-              <div
-                className={`topic-option ${postType === 'Ad' ? 'selected' : ''}`}
-                onClick={() => setPostType('Ad')}
-              >
-                📢 Ad
-              </div>
-              <div
-                className={`topic-option ${postType === 'Topic' ? 'selected' : ''}`}
-                onClick={() => setPostType('Topic')}
-              >
-                📌 Topic
-              </div>
+              <div className={`topic-option ${postType === 'Ad' ? 'selected' : ''}`} onClick={() => setPostType('Ad')}>📢 Ad</div>
+              <div className={`topic-option ${postType === 'Topic' ? 'selected' : ''}`} onClick={() => setPostType('Topic')}>📌 Topic</div>
             </div>
           </div>
 
           <div className="form-group">
             <label>Display Name *</label>
-            <input
-              type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="Your public name"
-              required
-            />
+            <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Your public name" required />
           </div>
 
           <div className="form-group">
             <label>Country *</label>
             <div ref={dropdownRef} style={{ position: 'relative' }}>
-              <div
-                onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                style={{
-                  padding: '14px',
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '16px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                }}
-              >
-                {selectedCountry?.flag && (
-                  <img src={selectedCountry.flag} alt="" style={{ width: '24px', height: '18px' }} />
-                )}
+              <div onClick={() => setShowCountryDropdown(!showCountryDropdown)} style={{ padding: '14px', background: 'rgba(0, 0, 0, 0.5)', border: '1px solid var(--border)', borderRadius: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {selectedCountry?.flag && <img src={selectedCountry.flag} alt="" style={{ width: '24px', height: '18px' }} />}
                 <span>{country || 'Select your country'}</span>
                 <span style={{ marginLeft: 'auto' }}>▼</span>
               </div>
               {showCountryDropdown && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    background: 'var(--card-bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '16px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    zIndex: 10001,
-                    marginTop: '5px',
-                  }}
-                >
-                  <input
-                    type="text"
-                    placeholder="Search country..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{
-                      padding: '10px',
-                      margin: '10px',
-                      width: 'calc(100% - 20px)',
-                      background: 'rgba(0,0,0,0.5)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '12px',
-                      color: 'var(--text)',
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', maxHeight: '200px', overflowY: 'auto', zIndex: 10001, marginTop: '5px' }}>
+                  <input type="text" placeholder="Search country..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ padding: '10px', margin: '10px', width: 'calc(100% - 20px)', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', borderRadius: '12px', color: 'var(--text)' }} onClick={(e) => e.stopPropagation()} />
                   {filteredCountries.map((c) => (
-                    <div
-                      key={c.code}
-                      onClick={() => {
-                        setCountry(c.name);
-                        setShowCountryDropdown(false);
-                        setSearchTerm('');
-                      }}
-                      style={{
-                        padding: '10px 15px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        transition: 'background 0.3s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,0,110,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
+                    <div key={c.code} onClick={() => { setCountry(c.name); setShowCountryDropdown(false); setSearchTerm(''); }} style={{ padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,0,110,0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                       <img src={c.flag} alt="" style={{ width: '24px', height: '18px' }} />
                       <span>{c.name}</span>
                     </div>
@@ -371,68 +326,103 @@ function CreatePost({ currentUser, setCurrentUser }) {
 
           <div className="form-group">
             <label>WhatsApp Number (private) *</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="2507..."
-              required
-            />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="2507..." required />
           </div>
 
           <div className="form-group">
             <label>Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Catchy title"
-              required
-            />
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Catchy title" required />
           </div>
 
           <div className="form-group">
             <label>Description *</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Share your story..."
-              rows="4"
-              required
-            />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Share your story..." rows="4" required />
           </div>
 
           <div className="form-group">
             <label>URL Link (optional)</label>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-            />
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" />
           </div>
 
+          {/* Media Upload Section */}
           <div className="form-group">
             <label>Upload Media (Image or Video, max 30MB)</label>
             <div className="media-upload" onClick={() => fileInputRef.current?.click()}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleMediaChange}
-                accept="image/*,video/*"
-                style={{ display: 'none' }}
-              />
-              <label>
-                {media ? (
-                  <span>📁 {media.name}</span>
-                ) : (
-                  <>
-                    <span>Click to upload</span>
-                    <span style={{ fontSize: '12px' }}>JPG, PNG, GIF, MP4</span>
-                  </>
-                )}
-              </label>
+              <input type="file" ref={fileInputRef} onChange={handleMediaChange} accept="image/*,video/*" style={{ display: 'none' }} />
+              <label>{media ? <span>📁 {media.name}</span> : <><span>Click to upload</span><span style={{ fontSize: '12px' }}>JPG, PNG, GIF, MP4</span></>}</label>
             </div>
+          </div>
+
+          {/* Media Link Section */}
+          <div className="form-group">
+            <label>Or Insert Media URL Link</label>
+            <input type="url" value={mediaLink} onChange={handleMediaLinkChange} placeholder="https://example.com/image.jpg or video.mp4" />
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>Paste a direct link to an image or video file</div>
+          </div>
+
+          {/* Media Preview */}
+          {mediaPreview && (
+            <div className="form-group">
+              <label>Media Preview</label>
+              <div style={{ background: '#000', borderRadius: '16px', overflow: 'hidden', maxHeight: '200px' }}>
+                {mediaType === 'video' ? (
+                  <video controls style={{ width: '100%', maxHeight: '200px' }} src={mediaPreview} />
+                ) : (
+                  <img src={mediaPreview} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover' }} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SUBTITLE SECTION - NEON VISUAL EFFECTS */}
+          <div className="form-group" style={{ border: `2px solid ${subtitleColor}`, borderRadius: '16px', padding: '16px', marginTop: '20px', background: 'rgba(0,0,0,0.3)' }}>
+            <label style={{ color: subtitleColor, fontSize: '18px', fontWeight: 'bold' }}>🎬 VIDEO SUBTITLE (Neon Effect)</label>
+            
+            <div className="form-group">
+              <label>Subtitle Text</label>
+              <input type="text" value={subtitleText} onChange={(e) => setSubtitleText(e.target.value)} placeholder="Enter subtitle text that will appear on video" />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>Start Time (seconds)</label>
+                <input type="number" value={subtitleStart} onChange={(e) => setSubtitleStart(parseInt(e.target.value) || 0)} min="0" step="0.5" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>Duration (seconds)</label>
+                <input type="number" value={subtitleDuration} onChange={(e) => setSubtitleDuration(parseInt(e.target.value) || 5)} min="1" step="0.5" />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>Neon Color</label>
+                <input type="color" value={subtitleColor} onChange={(e) => setSubtitleColor(e.target.value)} style={{ width: '100%', height: '40px', borderRadius: '8px' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>Font Size (px)</label>
+                <input type="range" min="12" max="48" value={subtitleSize} onChange={(e) => setSubtitleSize(parseInt(e.target.value))} style={{ width: '100%' }} />
+                <span style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>{subtitleSize}px</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '12px' }}>Position</label>
+                <select value={subtitlePosition} onChange={(e) => setSubtitlePosition(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)' }}>
+                  <option value="top">Top</option>
+                  <option value="center">Center</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Live Preview of Subtitle Style */}
+            {subtitleText && (
+              <div className="form-group" style={{ marginTop: '15px', padding: '15px', background: '#000', borderRadius: '12px', textAlign: 'center' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px', display: 'block' }}>🔮 Live Preview (Neon Effect)</label>
+                <div style={previewSubtitleStyle}>
+                  {subtitleText}
+                </div>
+              </div>
+            )}
           </div>
 
           {!currentUser && (
@@ -440,31 +430,14 @@ function CreatePost({ currentUser, setCurrentUser }) {
               <label>Create 6-digit PIN (for new users)</label>
               <div className="pin-input-container">
                 {pin.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    id={`pin-${idx}`}
-                    type="tel"
-                    maxLength="1"
-                    className="pin-digit"
-                    value={digit}
-                    onChange={(e) => handlePinChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, idx)}
-                    pattern="[0-9]"
-                  />
+                  <input key={idx} id={`pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handlePinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
                 ))}
               </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '5px' }}>
-                Leave blank if you already have an account
-              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '5px' }}>Leave blank if you already have an account</div>
             </div>
           )}
 
-          <button
-            type="submit"
-            className="btn primary"
-            style={{ width: '100%', padding: '15px', fontSize: '16px' }}
-            disabled={loading}
-          >
+          <button type="submit" className="btn primary" style={{ width: '100%', padding: '15px', fontSize: '16px', marginTop: '20px' }} disabled={loading}>
             {loading ? '⏳ Creating...' : '✨ Create Post'}
           </button>
         </form>
@@ -472,9 +445,7 @@ function CreatePost({ currentUser, setCurrentUser }) {
         {!currentUser && !showLoginForm && (
           <div style={{ marginTop: '30px', paddingTop: '30px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
             <p style={{ color: 'var(--text-muted)', marginBottom: '15px' }}>Need to recover your PIN?</p>
-            <a href="/pin-recovery" className="btn" style={{ background: 'rgba(255,255,255,0.1)' }}>
-              🔓 Forgot PIN?
-            </a>
+            <a href="/pin-recovery" className="btn" style={{ background: 'rgba(255,255,255,0.1)' }}>🔓 Forgot PIN?</a>
           </div>
         )}
       </div>

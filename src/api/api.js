@@ -137,9 +137,7 @@ export function getUserSession() {
   const user = localStorage.getItem('feedX_user');
   const token = localStorage.getItem('feedX_token');
   return { user: user ? JSON.parse(user) : null, token: token || null };
-  
 }
-
 
 export function getAdminSession() {
   return localStorage.getItem('feedX_admin_token');
