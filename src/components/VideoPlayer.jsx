@@ -1,57 +1,45 @@
 // src/components/VideoPlayer.jsx
 import React, { useRef, useState, useEffect } from "react";
 
-function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
+function VideoPlayer({ src, subtitle, onPlay }) {
   const videoRef = useRef(null);
-
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState("");
   const [subtitleCues, setSubtitleCues] = useState([]);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [videoURL, setVideoURL] = useState("");
 
-  // ✅ Handle src (File OR URL)
+  // Handle src - ensure it's a valid URL
   useEffect(() => {
-    if (!src) return;
-
-    // If it's a File object (upload)
-    if (typeof src === "object") {
-      const url = URL.createObjectURL(src);
-      setVideoURL(url);
-
-      // Cleanup memory
-      return () => URL.revokeObjectURL(url);
-    } else {
-      // If it's already a string URL
-      setVideoURL(src);
+    if (!src) {
+      console.log("VideoPlayer: No src provided");
+      return;
+    }
+    
+    console.log("VideoPlayer: Setting src to:", src);
+    setVideoURL(src);
+    
+    // If video element already exists, set src directly
+    if (videoRef.current) {
+      videoRef.current.src = src;
+      videoRef.current.load();
     }
   }, [src]);
 
-  // ✅ Parse subtitles
+  // Parse subtitles
   useEffect(() => {
     if (subtitle && subtitle.text) {
-      if (subtitle.cues && Array.isArray(subtitle.cues)) {
-        setSubtitleCues(subtitle.cues);
-      } else {
-        const cues = [
-          {
-            text: subtitle.text,
-            start: subtitle.start || 0,
-            end: (subtitle.start || 0) + (subtitle.duration || 5),
-          },
-        ];
-        setSubtitleCues(cues);
-      }
+      const cues = [
+        {
+          text: subtitle.text,
+          start: subtitle.start || 0,
+          end: (subtitle.start || 0) + (subtitle.duration || 5),
+        },
+      ];
+      setSubtitleCues(cues);
     }
   }, [subtitle]);
 
   const handlePlay = () => {
-    setIsPlaying(true);
     if (onPlay) onPlay();
-  };
-
-  const handlePause = () => {
-    setIsPlaying(false);
   };
 
   const handleTimeUpdate = () => {
@@ -64,10 +52,9 @@ function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
     }
   };
 
-  // ✅ Click = play/pause
+  // Click = play/pause
   const handleClick = () => {
     if (!videoRef.current) return;
-
     if (videoRef.current.paused) {
       videoRef.current.play();
     } else {
@@ -75,26 +62,17 @@ function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
     }
   };
 
-  // ✅ Double click = fullscreen
+  // Double click = fullscreen
   const handleFullscreen = () => {
     if (!videoRef.current) return;
-
-    if (!isFullscreen) {
-      if (videoRef.current.requestFullscreen) {
-        videoRef.current.requestFullscreen();
-      } else if (videoRef.current.webkitRequestFullscreen) {
-        videoRef.current.webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-      setIsFullscreen(false);
+    if (videoRef.current.requestFullscreen) {
+      videoRef.current.requestFullscreen();
+    } else if (videoRef.current.webkitRequestFullscreen) {
+      videoRef.current.webkitRequestFullscreen();
     }
   };
 
-  // ✅ Subtitle style (neon)
+  // Subtitle style (neon)
   const subtitleStyle = {
     position: "absolute",
     bottom: subtitle?.position === "top" ? "auto" : "15%",
@@ -115,7 +93,12 @@ function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: "8px",
     maxWidth: "80%",
+    whiteSpace: "nowrap",
   };
+
+  if (!src) {
+    return <div className="post-media" style={{ padding: "20px", textAlign: "center" }}>No video source</div>;
+  }
 
   return (
     <div
@@ -126,13 +109,11 @@ function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
     >
       <video
         ref={videoRef}
+        src={videoURL}
         onPlay={handlePlay}
-        onPause={handlePause}
         onTimeUpdate={handleTimeUpdate}
         controls
         playsInline
-        muted
-        autoPlay
         preload="metadata"
         style={{
           width: "100%",
@@ -142,15 +123,13 @@ function VideoPlayer({ src, subtitle, mediaType, onPlay }) {
           borderRadius: "12px",
         }}
       >
-        {/* ✅ Proper source handling */}
-        <source src={videoURL} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
 
-      {/* ✅ Subtitle */}
+      {/* Subtitle */}
       {currentSubtitle && <div style={subtitleStyle}>{currentSubtitle}</div>}
 
-      {/* ✅ Neon animation */}
+      {/* Neon animation */}
       <style>{`
         @keyframes neonPulse {
           from {
