@@ -9,6 +9,8 @@ import { getTimeAgo, formatDate } from '../utils/time';
 import { getCountryByCode } from '../utils/countries';
 import { getUserSession } from '../api/api';
 
+const WORKER_URL = 'https://modekit.cucina656.workers.dev';
+
 function PostDetail({ currentUser }) {
   const [searchParams] = useSearchParams();
   const postId = searchParams.get('id');
@@ -33,7 +35,6 @@ function PostDetail({ currentUser }) {
       try {
         setLoading(true);
         
-        // Get all posts and find the specific one
         const posts = await getPosts();
         const foundPost = posts.find(p => p.id === postId);
         
@@ -44,10 +45,8 @@ function PostDetail({ currentUser }) {
         
         setPost(foundPost);
         
-        // Increment view count
         await incrementViews(postId);
         
-        // Get view count
         const viewsData = await getViews(postId);
         if (viewsData && viewsData.views) {
           setViews(viewsData.views);
@@ -55,11 +54,9 @@ function PostDetail({ currentUser }) {
           setViews(foundPost.view_count || Math.floor(Math.random() * 200) + 50);
         }
         
-        // Get comments
         const commentsData = await getComments(postId);
         setComments(commentsData.comments || []);
         
-        // Get ratings
         const ratingsData = await getRatings(postId);
         setRatings(ratingsData.ratings || []);
         
@@ -152,8 +149,9 @@ function PostDetail({ currentUser }) {
   const fullStars = Math.floor(avgRating);
   const starsDisplay = '★'.repeat(fullStars) + '☆'.repeat(5 - fullStars);
   
-  const isVideo = post.image_url && 
-    post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
+  // Build full media URL
+  const mediaUrl = post.image_url ? `${WORKER_URL}${post.image_url}` : null;
+  const isVideo = mediaUrl && mediaUrl.toLowerCase().match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
 
   // Prepare subtitle object for video
   const subtitleData = {
@@ -200,12 +198,12 @@ function PostDetail({ currentUser }) {
         </div>
 
         {/* Media Section with Floating Comments */}
-        {post.image_url && (
+        {mediaUrl && (
           <div className="post-media" style={{ position: 'relative' }}>
             {isVideo ? (
               <>
                 <VideoPlayer 
-                  src={post.image_url} 
+                  src={mediaUrl} 
                   subtitle={subtitleData}
                 />
                 {/* Floating Comments Over Video */}
@@ -232,7 +230,7 @@ function PostDetail({ currentUser }) {
               </>
             ) : (
               <img 
-                src={post.image_url} 
+                src={mediaUrl} 
                 alt={post.title} 
                 style={{ width: '100%', maxHeight: '500px', objectFit: 'cover' }}
               />
