@@ -128,6 +128,24 @@ export async function adminGetPendingRecoveries(adminToken) {
   });
 }
 
+// NEW: Add reply to comment
+export async function addCommentReply(data) {
+  return apiCall('/api/comment/reply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+// NEW: Hide comment
+export async function hideComment(commentId) {
+  return apiCall('/api/comment/hide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment_id: commentId }),
+  });
+}
+
 export function saveUserSession(user, token) {
   localStorage.setItem('feedX_user', JSON.stringify(user));
   localStorage.setItem('feedX_token', token);
