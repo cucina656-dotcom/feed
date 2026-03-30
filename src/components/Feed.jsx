@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion'; // For that futuristic "flow"
 import PostCard from './PostCard';
 import CommentModal from './CommentModal';
 import { getPosts, incrementViews } from '../api/api';
@@ -19,7 +18,7 @@ function Feed({ currentUser }) {
       setPosts(data || []);
       setError(null);
     } catch (err) {
-      setError('System connection interrupted');
+      setError('System Uplink Failed');
     } finally {
       setLoading(false);
     }
@@ -27,73 +26,76 @@ function Feed({ currentUser }) {
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
 
-  // Loading State: Shimmering "Glass" skeletons
-  if (loading) {
-    return (
-      <main className="feed-container">
-        <div className="loader-mesh">
-          <div className="spinner-neon"></div>
-          <p className="glitch-text" data-text="INITIALIZING... ">INITIALIZING...</p>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <div className="loading"><div className="loading-spinner"></div></div>;
 
   return (
-    <main className="max-w-7xl mx-auto px-4 py-12">
-      <header className="mb-12 text-center">
-        <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent">
-          NEURAL FEED
-        </h1>
-      </header>
+    <main className="container twitter-layout">
+      {/* Left Sidebar: Old Twitter Style Profile Summary */}
+      <aside className="sidebar-left">
+        <div className="profile-mini-card glass-panel">
+          <div className="profile-cover"></div>
+          <div className="profile-info">
+            <div className="user-avatar-large">
+              {currentUser?.avatar ? <img src={currentUser.avatar} alt="Me" /> : 'U'}
+            </div>
+            <div className="profile-meta">
+              <h3>{currentUser?.name || 'Neural Pilot'}</h3>
+              <span>@{currentUser?.username || 'user_null'}</span>
+            </div>
+            <div className="profile-stats">
+              <div><strong>1.2k</strong><span>Signals</span></div>
+              <div><strong>842</strong><span>Nodes</span></div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="trending-box glass-panel">
+          <h4>Neural Trends</h4>
+          <p>#CyberSecurity</p>
+          <p>#Web3_Void</p>
+          <p>#React_Neon</p>
+        </div>
+      </aside>
 
-      <AnimatePresence>
-        {posts.length > 0 ? (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-          >
-            {posts.map((post, index) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <PostCard
-                  post={post}
-                  currentUser={currentUser}
-                  onView={() => incrementViews(post.id)}
-                  onComment={() => { setSelectedPost(post); setShowCommentModal(true); }}
-                />
-              </motion.div>
-            ))}
-          </motion.div>
-        ) : (
-          <EmptyState />
-        )}
-      </AnimatePresence>
+      {/* Center: The Feed */}
+      <section className="feed-main">
+        {/* Quick Post Box */}
+        <div className="quick-post glass-panel">
+          <input type="text" placeholder="What's happening in the grid?" />
+          <button className="btn primary">Broadcast</button>
+        </div>
 
-      {showCommentModal && (
+        <div className="feed-stream">
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              currentUser={currentUser}
+              onView={() => incrementViews(post.id)}
+              onComment={(p) => { setSelectedPost(p); setShowCommentModal(true); }}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Right Sidebar: Suggestions */}
+      <aside className="sidebar-right">
+        <div className="glass-panel recommendations">
+          <h4>Who to Follow</h4>
+          <div className="rec-item"><span>@AI_Sentinel</span><button className="btn">Link</button></div>
+          <div className="rec-item"><span>@Ghost_In_JS</span><button className="btn">Link</button></div>
+        </div>
+      </aside>
+
+      {showCommentModal && selectedPost && (
         <CommentModal
           post={selectedPost}
           onClose={() => setShowCommentModal(false)}
+          onSuccess={loadPosts}
         />
       )}
     </main>
   );
 }
-
-const EmptyState = () => (
-  <div className="glass-panel p-20 text-center border border-white/10 rounded-3xl">
-    <div className="text-6xl mb-6 animate-pulse">🛰️</div>
-    <h3 className="text-2xl font-bold text-white mb-2">Void Detected</h3>
-    <p className="text-gray-400 mb-8">No signals found in this sector.</p>
-    <Link to="/create" className="neon-button">
-      Broadcast Signal
-    </Link>
-  </div>
-);
 
 export default Feed;
