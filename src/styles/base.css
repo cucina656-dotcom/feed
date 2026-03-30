@@ -63,8 +63,8 @@ body {
   font-weight: 900;
   background: linear-gradient(135deg, #fff, var(--accent), var(--secondary));
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   text-decoration: none;
   letter-spacing: -0.5px;
   position: relative;
@@ -183,6 +183,7 @@ body {
   padding: 2px;
   background: linear-gradient(135deg, var(--accent), var(--secondary), var(--success));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
@@ -246,6 +247,7 @@ body {
   padding: 3px;
   background: linear-gradient(135deg, var(--accent), var(--secondary));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0.5;
@@ -462,7 +464,7 @@ body {
   box-shadow: 0 5px 15px var(--accent-glow);
 }
 
-/* Rating & Comment Combined Section */
+/* Comment Card */
 .comment-card {
   padding: 12px;
   margin-bottom: 12px;
@@ -510,6 +512,7 @@ body {
   padding: 2px;
   background: linear-gradient(135deg, var(--accent), var(--secondary));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0.5;
@@ -625,6 +628,7 @@ body {
   padding: 2px;
   background: linear-gradient(135deg, var(--accent), var(--secondary));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0.3;
