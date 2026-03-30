@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import CommentModal from './CommentModal';
-import { getPosts, getComments, getRatings, incrementViews, getViews } from '../api/api';
+import FloatingComment from './FloatingComment';
+import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment } from '../api/api';
 import { getTimeAgo, formatDate } from '../utils/time';
 import { getCountryByCode } from '../utils/countries';
+import { getUserSession } from '../api/api';
 
 function PostDetail({ currentUser }) {
   const [searchParams] = useSearchParams();
@@ -18,6 +20,7 @@ function PostDetail({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showAllComments, setShowAllComments] = useState(false);
 
   useEffect(() => {
     if (!postId) {
@@ -72,12 +75,46 @@ function PostDetail({ currentUser }) {
   }, [postId]);
 
   const handleCommentAdded = () => {
-    // Refresh comments
     const loadComments = async () => {
       const commentsData = await getComments(postId);
       setComments(commentsData.comments || []);
     };
     loadComments();
+  };
+
+  const handleReply = async (parentId, replyText) => {
+    const user = getUserSession().user;
+    if (!user) {
+      alert('Please login to reply');
+      return;
+    }
+    
+    const replyData = {
+      parent_id: parentId,
+      user_name: user.name,
+      user_age: user.birth_year,
+      user_country: user.country,
+      profile_picture: user.profile_picture,
+      comment: replyText,
+      media_url: null
+    };
+    
+    try {
+      await addCommentReply(replyData);
+      handleCommentAdded();
+    } catch (err) {
+      console.error('Reply error:', err);
+      alert('Failed to post reply');
+    }
+  };
+
+  const handleHideComment = async (commentId) => {
+    try {
+      await hideComment(commentId);
+      handleCommentAdded();
+    } catch (err) {
+      console.error('Hide error:', err);
+    }
   };
 
   if (loading) {
@@ -118,6 +155,20 @@ function PostDetail({ currentUser }) {
   const isVideo = post.image_url && 
     post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
 
+  // Prepare subtitle object for video
+  const subtitleData = {
+    text: post.subtitle_text || '',
+    start: post.subtitle_start || 0,
+    duration: post.subtitle_duration || 5,
+    color: post.subtitle_color || '#ff006e',
+    size: post.subtitle_size || 24,
+    position: post.subtitle_position || 'bottom'
+  };
+
+  // Get top 5 comments for floating display
+  const topComments = comments.slice(0, 5);
+  const displayComments = showAllComments ? comments : topComments;
+
   return (
     <main className="container">
       <div className="post-card" style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -148,16 +199,43 @@ function PostDetail({ currentUser }) {
           </span>
         </div>
 
-        {/* Media Section */}
+        {/* Media Section with Floating Comments */}
         {post.image_url && (
-          <div className="post-media">
+          <div className="post-media" style={{ position: 'relative' }}>
             {isVideo ? (
-              <VideoPlayer 
-                src={post.image_url} 
-                subtitle={post.subtitle}
-              />
+              <>
+                <VideoPlayer 
+                  src={post.image_url} 
+                  subtitle={subtitleData}
+                />
+                {/* Floating Comments Over Video */}
+                <div className="floating-comments-container">
+                  {topComments.map(comment => (
+                    <FloatingComment 
+                      key={comment.id} 
+                      comment={comment} 
+                      onReply={handleReply}
+                      onHide={handleHideComment}
+                      isLatest={comment.id === comments[0]?.id}
+                    />
+                  ))}
+                  {comments.length > 5 && !showAllComments && (
+                    <button 
+                      onClick={() => setShowAllComments(true)} 
+                      className="btn" 
+                      style={{ background: 'rgba(0,0,0,0.7)', fontSize: '12px', padding: '8px' }}
+                    >
+                      View all {comments.length} comments...
+                    </button>
+                  )}
+                </div>
+              </>
             ) : (
-              <img src={post.image_url} alt={post.title} />
+              <img 
+                src={post.image_url} 
+                alt={post.title} 
+                style={{ width: '100%', maxHeight: '500px', objectFit: 'cover' }}
+              />
             )}
           </div>
         )}
@@ -187,17 +265,28 @@ function PostDetail({ currentUser }) {
           )}
         </div>
 
-        {/* Comments Section */}
+        {/* Full Comments Section */}
         <div className="reviews-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h4>Comments ({commentCount})</h4>
-            <button 
-              className="btn primary" 
-              onClick={() => setShowCommentModal(true)}
-              style={{ padding: '8px 16px' }}
-            >
-              💬 Add Comment & Rating
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <h4>All Comments ({commentCount})</h4>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {showAllComments && comments.length > 5 && (
+                <button 
+                  className="btn" 
+                  onClick={() => setShowAllComments(false)}
+                  style={{ padding: '8px 16px', fontSize: '12px' }}
+                >
+                  Show Less
+                </button>
+              )}
+              <button 
+                className="btn primary" 
+                onClick={() => setShowCommentModal(true)}
+                style={{ padding: '8px 16px' }}
+              >
+                💬 Add Comment & Rating
+              </button>
+            </div>
           </div>
 
           {comments.length === 0 ? (
@@ -205,7 +294,7 @@ function PostDetail({ currentUser }) {
               No comments yet. Be the first to comment and rate!
             </p>
           ) : (
-            comments.map((comment) => {
+            displayComments.map((comment) => {
               const commentCountryData = getCountryByCode(comment.user_country) || { flag: null };
               const commentAge = comment.user_age ? new Date().getFullYear() - comment.user_age : null;
               
@@ -214,9 +303,9 @@ function PostDetail({ currentUser }) {
                   <div className="comment-header">
                     <div className="comment-avatar">
                       {comment.profile_picture ? (
-                        <img src={comment.profile_picture} alt={comment.user_name} />
+                        <img src={comment.profile_picture} alt={comment.user_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (
-                        comment.user_name?.charAt(0).toUpperCase() || '?'
+                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{comment.user_name?.charAt(0).toUpperCase() || '?'}</span>
                       )}
                     </div>
                     <div className="comment-info">
@@ -227,38 +316,60 @@ function PostDetail({ currentUser }) {
                             src={commentCountryData.flag} 
                             alt={comment.user_country}
                             className="comment-flag"
+                            style={{ width: '20px', height: '15px', marginLeft: '5px' }}
                           />
                         )}
                         {commentAge && (
-                          <span className="comment-age">({commentAge} years)</span>
+                          <span className="comment-age" style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '5px' }}>
+                            ({commentAge} years)
+                          </span>
                         )}
                       </div>
-                      <div className="comment-rating">
+                      <div className="comment-rating" style={{ display: 'flex', gap: '2px', marginTop: '4px' }}>
                         {[1, 2, 3, 4, 5].map((star) => (
                           <span 
                             key={star} 
                             className={`comment-star ${star <= comment.rating ? 'filled' : ''}`}
+                            style={{ fontSize: '12px', color: star <= comment.rating ? 'var(--accent)' : 'rgba(255,255,255,0.3)' }}
                           >
                             ★
                           </span>
                         ))}
                       </div>
                     </div>
+                    <button 
+                      onClick={() => handleHideComment(comment.id)} 
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <div className="comment-text">{comment.comment}</div>
+                  <div className="comment-text" style={{ paddingLeft: '52px', marginBottom: '8px' }}>
+                    {comment.comment}
+                  </div>
                   {comment.media_url && (
                     <a 
                       href={comment.media_url} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="comment-media-link"
+                      style={{ paddingLeft: '52px', display: 'inline-block', fontSize: '12px', color: 'var(--secondary)' }}
                     >
                       🔗 {comment.media_url.length > 50 ? comment.media_url.substring(0, 50) + '...' : comment.media_url}
                     </a>
                   )}
-                  <div className="comment-time">
+                  <div className="comment-time" style={{ paddingLeft: '52px', fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
                     {formatDate(comment.created_at)}
                   </div>
+                  <button 
+                    onClick={() => {
+                      const replyText = prompt('Write your reply:');
+                      if (replyText) handleReply(comment.id, replyText);
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--secondary)', cursor: 'pointer', fontSize: '12px', marginTop: '8px', paddingLeft: '52px' }}
+                  >
+                    💬 Reply
+                  </button>
                 </div>
               );
             })
