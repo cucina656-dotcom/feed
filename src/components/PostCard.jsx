@@ -89,25 +89,32 @@ function PostCard({ post, currentUser, onView, onComment }) {
         </span>
       </div>
 
-      {/* Media Section */}
-      {post.image_url && (
-        <div className="post-media">
-          {isVideo ? (
-            <VideoPlayer 
-              src={post.image_url} 
-              subtitle={post.subtitle}
-              onPlay={handleViewPost}
-            />
-          ) : (
-            <img 
-              src={post.image_url} 
-              alt={post.title} 
-              loading="lazy"
-              onClick={handleViewPost}
-            />
-          )}
-        </div>
-      )}
+     {/* Media Section */}
+{post.image_url && (
+  <div className="post-media">
+    {isVideo ? (
+      <VideoPlayer 
+        src={`https://modekit.cucina656.workers.dev${post.image_url}`} 
+        subtitle={{
+          text: post.subtitle_text,
+          start: post.subtitle_start,
+          duration: post.subtitle_duration,
+          color: post.subtitle_color,
+          size: post.subtitle_size,
+          position: post.subtitle_position
+        }}
+        onPlay={handleViewPost}
+      />
+    ) : (
+      <img 
+        src={`https://modekit.cucina656.workers.dev${post.image_url}`} 
+        alt={post.title} 
+        loading="lazy"
+        onClick={handleViewPost}
+      />
+    )}
+  </div>
+)}
 
       <div className="post-info">
         <div className="post-stats">
