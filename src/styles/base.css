@@ -937,3 +937,23 @@ body {
     flex-direction: column;
   }
 }
+
+
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 5px var(--accent); border-color: var(--accent); }
+  100% { box-shadow: 0 0 20px var(--accent); border-color: var(--secondary); }
+}
+
+.floating-comments-container {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
