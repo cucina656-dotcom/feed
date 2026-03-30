@@ -1,6 +1,6 @@
-// src/components/Feed.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion'; // For that futuristic "flow"
 import PostCard from './PostCard';
 import CommentModal from './CommentModal';
 import { getPosts, incrementViews } from '../api/api';
@@ -19,126 +19,81 @@ function Feed({ currentUser }) {
       setPosts(data || []);
       setError(null);
     } catch (err) {
-      console.error('Error loading posts:', err);
-      setError('Failed to load posts');
+      setError('System connection interrupted');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
+  useEffect(() => { loadPosts(); }, [loadPosts]);
 
-  const handleViewPost = async (post) => {
-    // Increment view count when post is viewed
-    try {
-      await incrementViews(post.id);
-    } catch (err) {
-      console.error('Error incrementing views:', err);
-    }
-  };
-
-  const handleOpenCommentModal = (post) => {
-    setSelectedPost(post);
-    setShowCommentModal(true);
-  };
-
-  const handleCloseCommentModal = () => {
-    setShowCommentModal(false);
-    setSelectedPost(null);
-  };
-
-  const handleCommentAdded = () => {
-    // Refresh posts to update comment counts
-    loadPosts();
-  };
-
+  // Loading State: Shimmering "Glass" skeletons
   if (loading) {
     return (
-      <main className="container">
-        <div className="loading">
-          <div className="loading-spinner"></div>
-          <p style={{ color: 'var(--text-muted)', marginTop: '20px' }}>
-            Loading amazing content...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="container">
-        <div
-          style={{
-            gridColumn: '1/-1',
-            textAlign: 'center',
-            padding: '60px 20px',
-          }}
-        >
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>😢</div>
-          <h3 style={{ marginBottom: '20px' }}>Something went wrong</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>
-            {error}
-          </p>
-          <button className="btn primary" onClick={() => loadPosts()}>
-            Try Again
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  if (!posts || posts.length === 0) {
-    return (
-      <main className="container">
-        <div
-          style={{
-            gridColumn: '1/-1',
-            textAlign: 'center',
-            padding: '60px 20px',
-          }}
-        >
-          <div style={{ fontSize: '64px', marginBottom: '20px' }}>✨</div>
-          <h3 style={{ marginBottom: '20px', color: 'var(--text)' }}>
-            No posts yet
-          </h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>
-            Be the first to share something amazing!
-          </p>
-          <Link to="/create" className="btn primary" style={{ padding: '15px 30px' }}>
-            Create Your First Post
-          </Link>
+      <main className="feed-container">
+        <div className="loader-mesh">
+          <div className="spinner-neon"></div>
+          <p className="glitch-text" data-text="INITIALIZING... ">INITIALIZING...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="container">
-      <div className="feed">
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            currentUser={currentUser}
-            onView={handleViewPost}
-            onComment={handleOpenCommentModal}
-          />
-        ))}
-      </div>
+    <main className="max-w-7xl mx-auto px-4 py-12">
+      <header className="mb-12 text-center">
+        <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent">
+          NEURAL FEED
+        </h1>
+      </header>
 
-      {showCommentModal && selectedPost && (
+      <AnimatePresence>
+        {posts.length > 0 ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          >
+            {posts.map((post, index) => (
+              <motion.div
+                key={post.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <PostCard
+                  post={post}
+                  currentUser={currentUser}
+                  onView={() => incrementViews(post.id)}
+                  onComment={() => { setSelectedPost(post); setShowCommentModal(true); }}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : (
+          <EmptyState />
+        )}
+      </AnimatePresence>
+
+      {showCommentModal && (
         <CommentModal
           post={selectedPost}
-          currentUser={currentUser}
-          onClose={handleCloseCommentModal}
-          onSuccess={handleCommentAdded}
+          onClose={() => setShowCommentModal(false)}
         />
       )}
     </main>
   );
 }
+
+const EmptyState = () => (
+  <div className="glass-panel p-20 text-center border border-white/10 rounded-3xl">
+    <div className="text-6xl mb-6 animate-pulse">🛰️</div>
+    <h3 className="text-2xl font-bold text-white mb-2">Void Detected</h3>
+    <p className="text-gray-400 mb-8">No signals found in this sector.</p>
+    <Link to="/create" className="neon-button">
+      Broadcast Signal
+    </Link>
+  </div>
+);
 
 export default Feed;
