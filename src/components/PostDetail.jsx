@@ -1,9 +1,9 @@
-// src/components/PostDetail.jsx - Fixed Reply Authentication
+// src/components/PostDetail.jsx - Reply uses same CommentModal
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import CommentModal from './CommentModal';
-import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment, userLogin, saveUserSession } from '../api/api';
+import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment } from '../api/api';
 import { getTimeAgo } from '../utils/time';
 import { getCountryByCode } from '../utils/countries';
 import { getUserSession } from '../api/api';
@@ -21,12 +21,7 @@ function PostDetail({ currentUser, setCurrentUser }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginPhone, setLoginPhone] = useState('');
-  const [loginPin, setLoginPin] = useState(['', '', '', '', '', '']);
-  const [loginError, setLoginError] = useState('');
-  const [pendingReply, setPendingReply] = useState(null);
-  const [pendingReplyText, setPendingReplyText] = useState('');
+  const [replyToComment, setReplyToComment] = useState(null);
 
   useEffect(() => {
     if (!postId) {
@@ -67,106 +62,33 @@ function PostDetail({ currentUser, setCurrentUser }) {
     setComments(commentsData.comments || []);
   };
 
-  const handleLoginPinChange = (index, value) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
-      const newPin = [...loginPin];
-      newPin[index] = value;
-      setLoginPin(newPin);
-      if (value && index < 5) {
-        const nextInput = document.getElementById(`reply-login-pin-${index + 1}`);
-        if (nextInput) nextInput.focus();
-      }
-    }
+  const handleReply = (parentComment) => {
+    setReplyToComment(parentComment);
+    setShowCommentModal(true);
   };
 
-  const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
-      const prevInput = document.getElementById(`reply-login-pin-${index - 1}`);
-      if (prevInput) prevInput.focus();
-    }
-  };
-
-  const handleLoginSubmit = async () => {
-    const phoneNumber = loginPhone.startsWith('+') ? loginPhone : '+' + loginPhone;
-    const pinValue = loginPin.join('');
-    
-    if (!phoneNumber || pinValue.length !== 6) {
-      setLoginError('Please enter valid phone and 6-digit PIN');
-      return;
-    }
-    
-    try {
-      const result = await userLogin(phoneNumber, pinValue);
-      if (result.ok) {
-        saveUserSession(result.user, result.token);
-        if (setCurrentUser) setCurrentUser(result.user);
-        
-        // If there was a pending reply, submit it now
-        if (pendingReply && pendingReplyText) {
-          await submitReplyAfterLogin(pendingReply, pendingReplyText, result.user);
-          setPendingReply(null);
-          setPendingReplyText('');
-        }
-        
-        setShowLoginModal(false);
-        setLoginPhone('');
-        setLoginPin(['', '', '', '', '', '']);
-        setLoginError('');
-        
-        // Refresh comments
-        handleCommentAdded();
-      } else {
-        setLoginError(result.error || 'Login failed');
-      }
-    } catch (err) {
-      setLoginError('Login failed. Please try again.');
-    }
-  };
-
-  const submitReplyAfterLogin = async (parentId, text, user) => {
-    const replyData = {
-      parent_id: parentId,
-      user_name: user.name,
-      user_age: user.birth_year,
-      user_country: user.country,
-      profile_picture: user.profile_picture,
-      comment: text,
-      media_url: null
-    };
-    
-    try {
-      await addCommentReply(replyData);
-      handleCommentAdded();
-    } catch (err) {
-      console.error('Reply error:', err);
-      alert('Failed to post reply');
-    }
-  };
-
-  const handleReply = async (parentId, text) => {
-    // Check if user is logged in using the same session as comment
+  const handleReplySubmit = async (commentData) => {
     const session = getUserSession();
-    
     if (!session.user) {
-      // Store pending reply and show login modal
-      setPendingReply(parentId);
-      setPendingReplyText(text);
-      setShowLoginModal(true);
+      alert('Please login first');
+      setShowCommentModal(false);
       return;
     }
     
     const replyData = {
-      parent_id: parentId,
-      user_name: session.user.name,
-      user_age: session.user.birth_year,
-      user_country: session.user.country,
-      profile_picture: session.user.profile_picture,
-      comment: text,
-      media_url: null
+      parent_id: replyToComment.id,
+      user_name: commentData.user_name,
+      user_age: commentData.user_age,
+      user_country: commentData.user_country,
+      profile_picture: commentData.profile_picture,
+      rating: 0, // Replies don't have ratings
+      comment: commentData.comment,
+      media_url: commentData.media_url
     };
     
     try {
       await addCommentReply(replyData);
+      setReplyToComment(null);
       handleCommentAdded();
     } catch (err) {
       console.error('Reply error:', err);
@@ -177,7 +99,7 @@ function PostDetail({ currentUser, setCurrentUser }) {
   const handleHideComment = async (commentId) => {
     const session = getUserSession();
     if (!session.user) {
-      setShowLoginModal(true);
+      alert('Please login to hide comments');
       return;
     }
     try {
@@ -246,18 +168,9 @@ function PostDetail({ currentUser, setCurrentUser }) {
   // Recursive Comment Component
   const CommentComponent = ({ comment, depth = 0 }) => {
     const [showReplyInput, setShowReplyInput] = useState(false);
-    const [localReplyText, setLocalReplyText] = useState('');
     const commentCountryData = getCountryByCode(comment.user_country) || { flag: null };
     const commentAge = comment.user_age ? new Date().getFullYear() - comment.user_age : null;
     
-    const submitReply = async () => {
-      if (localReplyText.trim()) {
-        await handleReply(comment.id, localReplyText);
-        setLocalReplyText('');
-        setShowReplyInput(false);
-      }
-    };
-
     return (
       <div style={{ marginLeft: depth > 0 ? '44px' : '0', marginBottom: '12px' }}>
         <div className="comment-card" style={{ background: '#1a1a1a', borderRadius: '20px', padding: '12px' }}>
@@ -286,22 +199,9 @@ function PostDetail({ currentUser, setCurrentUser }) {
                 <a href={comment.media_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--secondary)', display: 'inline-block', marginTop: '6px' }}>🔗 Media Link</a>
               )}
               <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px' }}>
-                <button onClick={() => setShowReplyInput(!showReplyInput)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Reply</button>
+                <button onClick={() => handleReply(comment)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Reply</button>
                 <button onClick={() => handleHideComment(comment.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Hide</button>
               </div>
-              {showReplyInput && (
-                <div style={{ marginTop: '10px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                  <textarea 
-                    value={localReplyText} 
-                    onChange={(e) => setLocalReplyText(e.target.value)} 
-                    placeholder="Write a reply..." 
-                    rows="2" 
-                    style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border)', borderRadius: '16px', color: 'var(--text)', fontSize: '13px', resize: 'vertical' }} 
-                  />
-                  <button onClick={submitReply} className="btn primary" style={{ padding: '8px 16px', fontSize: '12px' }}>Post</button>
-                  <button onClick={() => setShowReplyInput(false)} className="btn" style={{ padding: '8px 16px', fontSize: '12px' }}>Cancel</button>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -314,45 +214,6 @@ function PostDetail({ currentUser, setCurrentUser }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
-      
-      {/* LOGIN MODAL - Same as comment login */}
-      {showLoginModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: 'var(--card-gradient)', borderRadius: '24px', padding: '30px', maxWidth: '400px', width: '90%', border: '1px solid var(--border)' }}>
-            <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>🔑 Login Required</h3>
-            <p style={{ marginBottom: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Please login to reply or interact with comments</p>
-            
-            {loginError && <div className="alert alert-danger" style={{ marginBottom: '15px' }}>❌ {loginError}</div>}
-            
-            <div className="form-group">
-              <label>WhatsApp Number</label>
-              <input type="tel" value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="2507..." />
-            </div>
-            
-            <div className="form-group">
-              <label>6-digit PIN</label>
-              <div className="pin-input-container">
-                {loginPin.map((digit, idx) => (
-                  <input key={idx} id={`reply-login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
-                ))}
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button className="btn primary" style={{ flex: 1 }} onClick={handleLoginSubmit}>Login</button>
-              <button className="btn" style={{ flex: 1 }} onClick={() => {
-                setShowLoginModal(false);
-                setPendingReply(null);
-                setPendingReplyText('');
-              }}>Cancel</button>
-            </div>
-            
-            <div style={{ textAlign: 'center', marginTop: '15px' }}>
-              <Link to="/create" style={{ color: 'var(--secondary)', fontSize: '12px' }}>Don't have an account? Create one</Link>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* FIXED MEDIA SECTION WITH CLOSE ICON */}
       <div style={{ background: '#000', width: '100%', maxHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -422,8 +283,14 @@ function PostDetail({ currentUser, setCurrentUser }) {
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-            <button className="action-btn" onClick={() => setShowCommentModal(true)} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>👍 Like</button>
-            <button className="action-btn" onClick={() => setShowCommentModal(true)} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>💬 Comment</button>
+            <button className="action-btn" onClick={() => {
+              setReplyToComment(null);
+              setShowCommentModal(true);
+            }} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>👍 Like</button>
+            <button className="action-btn" onClick={() => {
+              setReplyToComment(null);
+              setShowCommentModal(true);
+            }} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>💬 Comment</button>
             <button className="action-btn" style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>📤 Share</button>
           </div>
         </div>
@@ -449,12 +316,8 @@ function PostDetail({ currentUser, setCurrentUser }) {
             type="text" 
             placeholder={`Comment as ${currentUser?.name || 'Guest'}...`} 
             onClick={() => {
-              const session = getUserSession();
-              if (!session.user) {
-                setShowLoginModal(true);
-              } else {
-                setShowCommentModal(true);
-              }
+              setReplyToComment(null);
+              setShowCommentModal(true);
             }}
             readOnly
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px' }}
@@ -466,12 +329,26 @@ function PostDetail({ currentUser, setCurrentUser }) {
         </div>
       </div>
 
+      {/* Comment Modal - Same for both new comment and reply */}
       {showCommentModal && (
         <CommentModal
           post={post}
           currentUser={currentUser}
-          onClose={() => setShowCommentModal(false)}
-          onSuccess={handleCommentAdded}
+          isReply={!!replyToComment}
+          parentComment={replyToComment}
+          onClose={() => {
+            setShowCommentModal(false);
+            setReplyToComment(null);
+          }}
+          onSuccess={async (commentData) => {
+            if (replyToComment) {
+              await handleReplySubmit(commentData);
+            } else {
+              await handleCommentAdded();
+            }
+            setShowCommentModal(false);
+            setReplyToComment(null);
+          }}
         />
       )}
     </div>
