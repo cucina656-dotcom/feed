@@ -21,8 +21,10 @@ function PostDetail({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [replyTo, setReplyTo] = useState(null);
-  const [replyText, setReplyText] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginPin, setLoginPin] = useState(['', '', '', '', '', '']);
+  const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
     if (!postId) {
@@ -63,27 +65,68 @@ function PostDetail({ currentUser }) {
     setComments(commentsData.comments || []);
   };
 
+  const handleLoginPinChange = (index, value) => {
+    if (value.length <= 1 && /^\d*$/.test(value)) {
+      const newPin = [...loginPin];
+      newPin[index] = value;
+      setLoginPin(newPin);
+      if (value && index < 5) {
+        const nextInput = document.getElementById(`login-pin-${index + 1}`);
+        if (nextInput) nextInput.focus();
+      }
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+      const prevInput = document.getElementById(`login-pin-${index - 1}`);
+      if (prevInput) prevInput.focus();
+    }
+  };
+
+  const handleLoginSubmit = async () => {
+    const phoneNumber = loginPhone.startsWith('+') ? loginPhone : '+' + loginPhone;
+    const pinValue = loginPin.join('');
+    
+    if (!phoneNumber || pinValue.length !== 6) {
+      setLoginError('Please enter valid phone and 6-digit PIN');
+      return;
+    }
+    
+    try {
+      const { userLogin, saveUserSession } = await import('../api/api');
+      const result = await userLogin(phoneNumber, pinValue);
+      if (result.ok) {
+        saveUserSession(result.user, result.token);
+        window.location.reload();
+      } else {
+        setLoginError(result.error || 'Login failed');
+      }
+    } catch (err) {
+      setLoginError('Login failed. Please try again.');
+    }
+  };
+
   const handleReply = async (parentId, text) => {
-    const user = getUserSession().user;
-    if (!user) {
-      alert('Please login to reply');
+    // Check if user is logged in
+    const session = getUserSession();
+    if (!session.user) {
+      setShowLoginModal(true);
       return;
     }
     
     const replyData = {
       parent_id: parentId,
-      user_name: user.name,
-      user_age: user.birth_year,
-      user_country: user.country,
-      profile_picture: user.profile_picture,
+      user_name: session.user.name,
+      user_age: session.user.birth_year,
+      user_country: session.user.country,
+      profile_picture: session.user.profile_picture,
       comment: text,
       media_url: null
     };
     
     try {
       await addCommentReply(replyData);
-      setReplyTo(null);
-      setReplyText('');
       handleCommentAdded();
     } catch (err) {
       console.error('Reply error:', err);
@@ -92,6 +135,11 @@ function PostDetail({ currentUser }) {
   };
 
   const handleHideComment = async (commentId) => {
+    const session = getUserSession();
+    if (!session.user) {
+      setShowLoginModal(true);
+      return;
+    }
     try {
       await hideComment(commentId);
       handleCommentAdded();
@@ -138,7 +186,7 @@ function PostDetail({ currentUser }) {
     position: post.subtitle_position || 'bottom'
   };
 
-  // Build comment tree (parent-child relationship)
+  // Build comment tree
   const commentMap = new Map();
   const topComments = [];
   
@@ -217,7 +265,6 @@ function PostDetail({ currentUser }) {
             </div>
           </div>
         </div>
-        {/* Render replies directly below - visible, not hidden */}
         {comment.replies && comment.replies.map(reply => (
           <CommentComponent key={reply.id} comment={reply} depth={depth + 1} />
         ))}
@@ -228,6 +275,41 @@ function PostDetail({ currentUser }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
       
+      {/* LOGIN MODAL */}
+      {showLoginModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ background: 'var(--card-gradient)', borderRadius: '24px', padding: '30px', maxWidth: '400px', width: '90%', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>🔑 Login Required</h3>
+            <p style={{ marginBottom: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Please login to reply or interact with comments</p>
+            
+            {loginError && <div className="alert alert-danger" style={{ marginBottom: '15px' }}>❌ {loginError}</div>}
+            
+            <div className="form-group">
+              <label>WhatsApp Number</label>
+              <input type="tel" value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="2507..." />
+            </div>
+            
+            <div className="form-group">
+              <label>6-digit PIN</label>
+              <div className="pin-input-container">
+                {loginPin.map((digit, idx) => (
+                  <input key={idx} id={`login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
+                ))}
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button className="btn primary" style={{ flex: 1 }} onClick={handleLoginSubmit}>Login</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => setShowLoginModal(false)}>Cancel</button>
+            </div>
+            
+            <div style={{ textAlign: 'center', marginTop: '15px' }}>
+              <Link to="/create" style={{ color: 'var(--secondary)', fontSize: '12px' }}>Don't have an account? Create one</Link>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* FIXED MEDIA SECTION WITH CLOSE ICON */}
       <div style={{ background: '#000', width: '100%', maxHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {mediaUrl && (
@@ -237,7 +319,6 @@ function PostDetail({ currentUser }) {
             <img src={mediaUrl} alt={post.title} style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
           )
         )}
-        {/* CLOSE ICON - Fixed */}
         <Link 
           to="/" 
           className="btn" 
@@ -287,7 +368,7 @@ function PostDetail({ currentUser }) {
           )}
         </div>
 
-        {/* Interaction Bar (Facebook Style) */}
+        {/* Interaction Bar */}
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -303,7 +384,7 @@ function PostDetail({ currentUser }) {
           </div>
         </div>
 
-        {/* Comment List - Facebook Style with Visible Replies */}
+        {/* Comment List */}
         <div>
           <p style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '16px', color: 'var(--text-muted)' }}>Most relevant ⌵</p>
           {topComments.length === 0 ? (
@@ -314,7 +395,7 @@ function PostDetail({ currentUser }) {
         </div>
       </div>
 
-      {/* FIXED INPUT BAR (Facebook Style) */}
+      {/* FIXED INPUT BAR */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--card-bg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '24px', padding: '8px 16px' }}>
           <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent), var(--secondary))', borderRadius: '50%' }}>
@@ -323,7 +404,13 @@ function PostDetail({ currentUser }) {
           <input 
             type="text" 
             placeholder={`Comment as ${currentUser?.name || 'Guest'}...`} 
-            onClick={() => setShowCommentModal(true)}
+            onClick={() => {
+              if (!currentUser) {
+                setShowLoginModal(true);
+              } else {
+                setShowCommentModal(true);
+              }
+            }}
             readOnly
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px' }}
           />
