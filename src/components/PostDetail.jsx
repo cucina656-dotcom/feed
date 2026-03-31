@@ -1,16 +1,16 @@
-// src/components/PostDetail.jsx - Combined (Close Icon + Facebook Style Comments)
+// src/components/PostDetail.jsx - Fixed Reply Authentication
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import CommentModal from './CommentModal';
-import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment } from '../api/api';
+import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment, userLogin, saveUserSession } from '../api/api';
 import { getTimeAgo } from '../utils/time';
 import { getCountryByCode } from '../utils/countries';
 import { getUserSession } from '../api/api';
 
 const WORKER_URL = 'https://modekit.cucina656.workers.dev';
 
-function PostDetail({ currentUser }) {
+function PostDetail({ currentUser, setCurrentUser }) {
   const [searchParams] = useSearchParams();
   const postId = searchParams.get('id');
   
@@ -25,6 +25,8 @@ function PostDetail({ currentUser }) {
   const [loginPhone, setLoginPhone] = useState('');
   const [loginPin, setLoginPin] = useState(['', '', '', '', '', '']);
   const [loginError, setLoginError] = useState('');
+  const [pendingReply, setPendingReply] = useState(null);
+  const [pendingReplyText, setPendingReplyText] = useState('');
 
   useEffect(() => {
     if (!postId) {
@@ -71,7 +73,7 @@ function PostDetail({ currentUser }) {
       newPin[index] = value;
       setLoginPin(newPin);
       if (value && index < 5) {
-        const nextInput = document.getElementById(`login-pin-${index + 1}`);
+        const nextInput = document.getElementById(`reply-login-pin-${index + 1}`);
         if (nextInput) nextInput.focus();
       }
     }
@@ -79,7 +81,7 @@ function PostDetail({ currentUser }) {
 
   const handleKeyDown = (e, index) => {
     if (e.key === 'Backspace' && !e.target.value && index > 0) {
-      const prevInput = document.getElementById(`login-pin-${index - 1}`);
+      const prevInput = document.getElementById(`reply-login-pin-${index - 1}`);
       if (prevInput) prevInput.focus();
     }
   };
@@ -94,11 +96,25 @@ function PostDetail({ currentUser }) {
     }
     
     try {
-      const { userLogin, saveUserSession } = await import('../api/api');
       const result = await userLogin(phoneNumber, pinValue);
       if (result.ok) {
         saveUserSession(result.user, result.token);
-        window.location.reload();
+        if (setCurrentUser) setCurrentUser(result.user);
+        
+        // If there was a pending reply, submit it now
+        if (pendingReply && pendingReplyText) {
+          await submitReplyAfterLogin(pendingReply, pendingReplyText, result.user);
+          setPendingReply(null);
+          setPendingReplyText('');
+        }
+        
+        setShowLoginModal(false);
+        setLoginPhone('');
+        setLoginPin(['', '', '', '', '', '']);
+        setLoginError('');
+        
+        // Refresh comments
+        handleCommentAdded();
       } else {
         setLoginError(result.error || 'Login failed');
       }
@@ -107,10 +123,34 @@ function PostDetail({ currentUser }) {
     }
   };
 
+  const submitReplyAfterLogin = async (parentId, text, user) => {
+    const replyData = {
+      parent_id: parentId,
+      user_name: user.name,
+      user_age: user.birth_year,
+      user_country: user.country,
+      profile_picture: user.profile_picture,
+      comment: text,
+      media_url: null
+    };
+    
+    try {
+      await addCommentReply(replyData);
+      handleCommentAdded();
+    } catch (err) {
+      console.error('Reply error:', err);
+      alert('Failed to post reply');
+    }
+  };
+
   const handleReply = async (parentId, text) => {
-    // Check if user is logged in
+    // Check if user is logged in using the same session as comment
     const session = getUserSession();
+    
     if (!session.user) {
+      // Store pending reply and show login modal
+      setPendingReply(parentId);
+      setPendingReplyText(text);
       setShowLoginModal(true);
       return;
     }
@@ -275,7 +315,7 @@ function PostDetail({ currentUser }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
       
-      {/* LOGIN MODAL */}
+      {/* LOGIN MODAL - Same as comment login */}
       {showLoginModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
           <div style={{ background: 'var(--card-gradient)', borderRadius: '24px', padding: '30px', maxWidth: '400px', width: '90%', border: '1px solid var(--border)' }}>
@@ -293,14 +333,18 @@ function PostDetail({ currentUser }) {
               <label>6-digit PIN</label>
               <div className="pin-input-container">
                 {loginPin.map((digit, idx) => (
-                  <input key={idx} id={`login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
+                  <input key={idx} id={`reply-login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
                 ))}
               </div>
             </div>
             
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button className="btn primary" style={{ flex: 1 }} onClick={handleLoginSubmit}>Login</button>
-              <button className="btn" style={{ flex: 1 }} onClick={() => setShowLoginModal(false)}>Cancel</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => {
+                setShowLoginModal(false);
+                setPendingReply(null);
+                setPendingReplyText('');
+              }}>Cancel</button>
             </div>
             
             <div style={{ textAlign: 'center', marginTop: '15px' }}>
@@ -405,7 +449,8 @@ function PostDetail({ currentUser }) {
             type="text" 
             placeholder={`Comment as ${currentUser?.name || 'Guest'}...`} 
             onClick={() => {
-              if (!currentUser) {
+              const session = getUserSession();
+              if (!session.user) {
                 setShowLoginModal(true);
               } else {
                 setShowCommentModal(true);
