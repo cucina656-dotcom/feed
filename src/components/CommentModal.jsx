@@ -1,9 +1,9 @@
 // src/components/CommentModal.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { addCommentWithRating } from '../api/api';
+import { addCommentWithRating, addCommentReply } from '../api/api';
 import { countries, getCountryByCode } from '../utils/countries';
 
-function CommentModal({ post, currentUser, onClose, onSuccess }) {
+function CommentModal({ post, currentUser, isReply = false, parentComment = null, onClose, onSuccess }) {
   const [userName, setUserName] = useState(currentUser?.name || '');
   const [userAge, setUserAge] = useState('');
   const [selectedCountry, setSelectedCountry] = useState('');
@@ -77,10 +77,13 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
       setError('Please select your country');
       return;
     }
-    if (rating === 0) {
+    
+    // Only require rating for new comments, not for replies
+    if (!isReply && rating === 0) {
       setError('Please rate this post (1-5 stars)');
       return;
     }
+    
     if (!comment.trim()) {
       setError('Please write a comment');
       return;
@@ -100,23 +103,39 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
         });
       }
 
-      const commentData = {
-        post_id: post.id,
-        user_name: userName.trim(),
-        user_age: birthYear,
-        user_country: selectedCountry,
-        profile_picture: profilePictureBase64,
-        rating: rating,
-        comment: comment.trim(),
-        media_url: mediaUrl.trim() || null,
-      };
-
-      const result = await addCommentWithRating(commentData);
+      let result;
+      
+      if (isReply && parentComment) {
+        // This is a reply - use addCommentReply API
+        const replyData = {
+          parent_id: parentComment.id,
+          user_name: userName.trim(),
+          user_age: birthYear,
+          user_country: selectedCountry,
+          profile_picture: profilePictureBase64,
+          comment: comment.trim(),
+          media_url: mediaUrl.trim() || null,
+        };
+        result = await addCommentReply(replyData);
+      } else {
+        // This is a new comment - use addCommentWithRating API
+        const commentData = {
+          post_id: post.id,
+          user_name: userName.trim(),
+          user_age: birthYear,
+          user_country: selectedCountry,
+          profile_picture: profilePictureBase64,
+          rating: rating,
+          comment: comment.trim(),
+          media_url: mediaUrl.trim() || null,
+        };
+        result = await addCommentWithRating(commentData);
+      }
       
       if (result.ok) {
-        setSuccess('Comment and rating submitted successfully!');
+        setSuccess(isReply ? 'Reply submitted successfully!' : 'Comment and rating submitted successfully!');
         setTimeout(() => {
-          if (onSuccess) onSuccess();
+          if (onSuccess) onSuccess(comment);
           onClose();
         }, 1500);
       } else {
@@ -177,7 +196,10 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
         onClick={(e) => e.stopPropagation()}
       >
         <h3 style={{ marginBottom: '20px', color: 'var(--text)' }}>
-          Rate & Comment on "{post.title}"
+          {isReply 
+            ? `Reply to ${parentComment?.user_name || 'comment'}`
+            : `Rate & Comment on "${post.title}"`
+          }
         </h3>
 
         {error && (
@@ -342,30 +364,32 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
           </div>
         </div>
 
-        {/* Rating Section */}
-        <div className="form-group">
-          <label>Your Rating *</label>
-          <div className="rating-stars" style={{ justifyContent: 'center', margin: '15px 0' }}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <span
-                key={star}
-                className={`star ${rating >= star ? 'selected' : ''}`}
-                onClick={() => !loading && handleRatingClick(star)}
-                style={{ cursor: loading ? 'not-allowed' : 'pointer', fontSize: '32px' }}
-              >
-                ★
-              </span>
-            ))}
+        {/* Rating Section - Only show for new comments, not for replies */}
+        {!isReply && (
+          <div className="form-group">
+            <label>Your Rating *</label>
+            <div className="rating-stars" style={{ justifyContent: 'center', margin: '15px 0' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span
+                  key={star}
+                  className={`star ${rating >= star ? 'selected' : ''}`}
+                  onClick={() => !loading && handleRatingClick(star)}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer', fontSize: '32px' }}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Comment Section */}
         <div className="form-group">
-          <label>Your Comment *</label>
+          <label>Your {isReply ? 'Reply' : 'Comment'} *</label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Write your thoughts about this post..."
+            placeholder={isReply ? "Write your reply..." : "Write your thoughts about this post..."}
             rows="4"
             disabled={loading}
             style={{ resize: 'vertical' }}
@@ -382,7 +406,7 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
             disabled={loading}
           />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>
-            Share a link to an image or video related to your comment
+            Share a link to an image or video related to your {isReply ? 'reply' : 'comment'}
           </div>
         </div>
 
@@ -393,7 +417,7 @@ function CommentModal({ post, currentUser, onClose, onSuccess }) {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? '⏳ Submitting...' : '⭐ Submit Rating & Comment'}
+            {loading ? '⏳ Submitting...' : (isReply ? '💬 Post Reply' : '⭐ Submit Rating & Comment')}
           </button>
           <button
             className="btn"
