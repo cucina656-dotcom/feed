@@ -12,6 +12,10 @@
   --text-muted: #b0b0b0;
   --border: rgba(255, 255, 255, 0.1);
   --header-bg: rgba(0, 0, 0, 0.95);
+  --comment-green: rgba(0, 200, 100, 0.15);
+  --comment-green-border: #00c864;
+  --reply-blue: rgba(58, 134, 255, 0.2);
+  --reply-blue-border: #3a86ff;
 }
 
 * {
@@ -23,7 +27,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Noto Sans', sans-serif;
   margin: 0;
   padding: 0;
   padding-top: 70px;
@@ -464,26 +468,43 @@ body {
   box-shadow: 0 5px 15px var(--accent-glow);
 }
 
-/* Comment Card */
+/* ============================================ */
+/* COMMENT STYLES - GREEN FOR MAIN, BLUE FOR REPLIES */
+/* ============================================ */
+
+/* Main comment card - Green background (ChatGPT style) */
 .comment-card {
-  padding: 12px;
+  padding: 14px;
   margin-bottom: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  border: 1px solid var(--border);
+  border-radius: 20px;
   transition: all 0.3s ease;
+  background: var(--comment-green);
+  border-left: 4px solid var(--comment-green-border);
+}
+
+/* Reply comment card - Blue background */
+.comment-card.reply {
+  background: var(--reply-blue);
+  border-left: 4px solid var(--reply-blue-border);
+}
+
+/* Target comments with margin-left (replies) */
+.comment-card[style*="margin-left"] {
+  background: var(--reply-blue) !important;
+  border-left: 4px solid var(--reply-blue-border) !important;
 }
 
 .comment-card:hover {
-  background: rgba(255, 255, 255, 0.1);
   transform: translateX(5px);
+  background: rgba(255, 255, 255, 0.08);
 }
 
+/* Comment header */
 .comment-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .comment-avatar {
@@ -495,6 +516,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .comment-avatar img {
@@ -504,31 +527,25 @@ body {
   object-fit: cover;
 }
 
-.comment-avatar::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  padding: 2px;
-  background: linear-gradient(135deg, var(--accent), var(--secondary));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.5;
+.comment-avatar span {
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
 }
 
 .comment-info {
   flex: 1;
 }
 
+/* User name - ChatGPT style */
 .comment-name {
   font-weight: 600;
   font-size: 14px;
   color: var(--accent);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .comment-flag {
@@ -541,16 +558,18 @@ body {
 .comment-age {
   font-size: 11px;
   color: var(--text-muted);
+  font-weight: normal;
 }
 
+/* Rating stars */
 .comment-rating {
   display: flex;
   gap: 2px;
-  margin: 5px 0;
+  margin-top: 4px;
 }
 
 .comment-star {
-  font-size: 14px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.3);
 }
 
@@ -558,13 +577,17 @@ body {
   color: var(--accent);
 }
 
+/* Comment text - White, ChatGPT style */
 .comment-text {
-  font-size: 13px;
-  color: var(--text-muted);
+  font-size: 14px;
+  color: #ffffff;
   line-height: 1.5;
   margin: 8px 0;
+  font-weight: 400;
+  letter-spacing: -0.2px;
 }
 
+/* Media link in comment */
 .comment-media-link {
   display: inline-block;
   margin-top: 8px;
@@ -574,11 +597,53 @@ body {
   word-break: break-all;
 }
 
+/* Comment time */
 .comment-time {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 6px;
   opacity: 0.7;
+}
+
+/* Reply button */
+.comment-reply-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 8px;
+  padding: 4px 0;
+  transition: color 0.2s ease;
+}
+
+.comment-reply-btn:hover {
+  color: var(--secondary);
+}
+
+/* Reply input container */
+.reply-input-container {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.reply-textarea {
+  flex: 1;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  font-size: 13px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.reply-textarea:focus {
+  outline: none;
+  border-color: var(--secondary);
 }
 
 /* Rating Stars */
@@ -659,6 +724,7 @@ body {
   font-size: 14px;
   transition: all 0.3s ease;
   backdrop-filter: blur(5px);
+  font-family: inherit;
 }
 
 .form-group input:focus,
@@ -889,6 +955,35 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Floating Comments Container */
+.floating-comments-container {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.floating-comments-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.floating-comments-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.floating-comments-container::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 10px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   body {
@@ -919,6 +1014,12 @@ body {
     padding: 8px 16px;
     font-size: 13px;
   }
+  .comment-card {
+    padding: 10px;
+  }
+  .comment-text {
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -935,5 +1036,8 @@ body {
   }
   .topic-selector {
     flex-direction: column;
+  }
+  .comment-card[style*="margin-left"] {
+    margin-left: 20px !important;
   }
 }
