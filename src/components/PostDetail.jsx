@@ -1,474 +1,60 @@
-// src/components/PostDetail.jsx - With Mentions and Score Input
-import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
-import VideoPlayer from './VideoPlayer';
-import CommentModal from './CommentModal';
-import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment, addCommentWithRating } from '../api/api';
-import { getTimeAgo } from '../utils/time';
-import { getCountryByCode } from '../utils/countries';
-import { getUserSession } from '../api/api';
+// Update CommentModal.jsx - Add score state
+const [score, setScore] = useState(0);
 
-const WORKER_URL = 'https://modekit.cucina656.workers.dev';
-
-function PostDetail({ currentUser, setCurrentUser }) {
-  const [searchParams] = useSearchParams();
-  const postId = searchParams.get('id');
-  
-  const [post, setPost] = useState(null);
-  const [comments, setComments] = useState([]);
-  const [ratings, setRatings] = useState([]);
-  const [views, setViews] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showCommentModal, setShowCommentModal] = useState(false);
-  const [mentionSuggestions, setMentionSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [currentInput, setCurrentInput] = useState('');
-  const [cursorPosition, setCursorPosition] = useState(0);
-
-  useEffect(() => {
-    if (!postId) {
-      setError('Missing post ID');
-      setLoading(false);
-      return;
-    }
-
-    const loadPostData = async () => {
-      try {
-        setLoading(true);
-        const posts = await getPosts();
-        const foundPost = posts.find(p => p.id === postId);
-        if (!foundPost) {
-          setError('Post not found');
-          return;
-        }
-        setPost(foundPost);
-        await incrementViews(postId);
-        const viewsData = await getViews(postId);
-        setViews(viewsData?.views || foundPost.view_count || 0);
-        const commentsData = await getComments(postId);
-        setComments(commentsData.comments || []);
-        const ratingsData = await getRatings(postId);
-        setRatings(ratingsData.ratings || []);
-      } catch (err) {
-        console.error('Error loading post:', err);
-        setError('Failed to load post');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadPostData();
-  }, [postId]);
-
-  const handleCommentAdded = async () => {
-    const commentsData = await getComments(postId);
-    setComments(commentsData.comments || []);
-  };
-
-  const handleAddComment = async (commentData) => {
-    try {
-      const result = await addCommentWithRating(commentData);
-      if (result.ok) {
-        await handleCommentAdded();
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error('Error adding comment:', err);
-      return false;
-    }
-  };
-
-  const handleHideComment = async (commentId) => {
-    const session = getUserSession();
-    if (!session.user) {
-      alert('Please login to hide comments');
-      return;
-    }
-    try {
-      await hideComment(commentId);
-      handleCommentAdded();
-    } catch (err) {
-      console.error('Hide error:', err);
-    }
-  };
-
-  // Parse mentions from text
-  const parseMentions = (text) => {
-    const mentionRegex = /@(\w+)/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = mentionRegex.exec(text)) !== null) {
-      // Add text before mention
-      if (match.index > lastIndex) {
-        parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
-      }
-      // Add mention
-      parts.push({ type: 'mention', content: match[0], username: match[1] });
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push({ type: 'text', content: text.substring(lastIndex) });
-    }
-
-    return parts;
-  };
-
-  if (loading) {
-    return (
-      <main className="container">
-        <div className="loading"><div className="loading-spinner"></div></div>
-      </main>
-    );
-  }
-
-  if (error || !post) {
-    return (
-      <main className="container">
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <h3>{error || 'Post not found'}</h3>
-          <Link to="/" className="btn primary">Back to Feed</Link>
-        </div>
-      </main>
-    );
-  }
-
-  const posterName = post.poster_name || post.user_name || 'Anonymous';
-  const posterCountry = post.poster_country || post.country || 'Unknown';
-  const timeAgo = getTimeAgo(post.created_at);
-  const commentCount = comments.length;
-  const ratingCount = ratings.length;
-  const avgRating = post.avg_rating || 0;
-  const countryData = getCountryByCode(posterCountry) || { flag: null };
-  const mediaUrl = post.image_url ? `${WORKER_URL}${post.image_url}` : null;
-  const isVideo = mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
-
-  const subtitleData = {
-    text: post.subtitle_text || '',
-    start: post.subtitle_start || 0,
-    duration: post.subtitle_duration || 5,
-    color: post.subtitle_color || '#ff006e',
-    size: post.subtitle_size || 24,
-    position: post.subtitle_position || 'bottom'
-  };
-
-  // Build comment tree
-  const commentMap = new Map();
-  const topComments = [];
-  
-  comments.forEach(comment => {
-    comment.replies = [];
-    commentMap.set(comment.id, comment);
-  });
-  
-  comments.forEach(comment => {
-    if (comment.parent_id && commentMap.has(comment.parent_id)) {
-      commentMap.get(comment.parent_id).replies.push(comment);
-    } else if (!comment.parent_id) {
-      topComments.push(comment);
-    }
-  });
-
-  // Comment Component with mentions
-  const CommentComponent = ({ comment, depth = 0 }) => {
-    const [showReplyInput, setShowReplyInput] = useState(false);
-    const [localReplyText, setLocalReplyText] = useState('');
-    const [localScore, setLocalScore] = useState(0);
-    const commentCountryData = getCountryByCode(comment.user_country) || { flag: null };
-    const commentAge = comment.user_age ? new Date().getFullYear() - comment.user_age : null;
-    const parsedComment = parseMentions(comment.comment);
-    
-    const getScoreColor = (score) => {
-      if (score >= 50) return '#00ff88';
-      return '#ff4444';
-    };
-
-    const submitReply = async () => {
-      if (localReplyText.trim()) {
-        const session = getUserSession();
-        if (!session.user) {
-          alert('Please login to reply');
-          return;
-        }
-        
-        const replyData = {
-          parent_id: comment.id,
-          user_name: session.user.name,
-          user_age: session.user.birth_year,
-          user_country: session.user.country,
-          profile_picture: session.user.profile_picture,
-          comment: localReplyText,
-          media_url: null,
-          score: localScore
-        };
-        
-        try {
-          await addCommentReply(replyData);
-          setLocalReplyText('');
-          setLocalScore(0);
-          setShowReplyInput(false);
-          handleCommentAdded();
-        } catch (err) {
-          console.error('Reply error:', err);
-          alert('Failed to post reply');
-        }
-      }
-    };
-
-    const handleMention = (username) => {
-      setLocalReplyText(prev => prev + `@${username} `);
-    };
-
-    return (
-      <div style={{ marginLeft: depth > 0 ? '44px' : '0', marginBottom: '12px' }}>
-        <div className={`comment-card ${depth > 0 ? 'reply' : ''}`}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div className="comment-avatar">
-              {comment.profile_picture ? (
-                <img src={comment.profile_picture} alt="" />
-              ) : (
-                <span>{comment.user_name?.charAt(0).toUpperCase() || '?'}</span>
-              )}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="comment-name">{comment.user_name}</span>
-                {commentCountryData.flag && <img src={commentCountryData.flag} alt="" className="comment-flag" />}
-                {commentAge && <span className="comment-age">({commentAge} yrs)</span>}
-                <span className="comment-time">{getTimeAgo(comment.created_at)}</span>
-              </div>
-              
-              {/* Score Display */}
-              {comment.score !== undefined && comment.score > 0 && (
-                <div style={{ marginTop: '4px', marginBottom: '6px' }}>
-                  <span style={{ 
-                    fontSize: '12px', 
-                    fontWeight: 'bold',
-                    color: getScoreColor(comment.score),
-                    background: 'rgba(0,0,0,0.3)',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    display: 'inline-block'
-                  }}>
-                    Score: {comment.score}/100
-                  </span>
-                </div>
-              )}
-              
-              {/* Comment with mentions */}
-              <div className="comment-text">
-                {parsedComment.map((part, idx) => {
-                  if (part.type === 'mention') {
-                    return (
-                      <span 
-                        key={idx} 
-                        className="mention"
-                        style={{
-                          color: '#3a86ff',
-                          fontWeight: 'bold',
-                          textShadow: '0 0 5px rgba(58,134,255,0.5)',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => handleMention(part.username)}
-                      >
-                        👉 {part.content}
-                      </span>
-                    );
-                  }
-                  return <span key={idx}>{part.content}</span>;
-                })}
-              </div>
-              
-              {comment.media_url && (
-                <a href={comment.media_url} target="_blank" rel="noopener noreferrer" className="comment-media-link">
-                  🔗 Media Link
-                </a>
-              )}
-              
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                <button onClick={() => setShowReplyInput(!showReplyInput)} className="comment-reply-btn">
-                  💬 Reply
-                </button>
-                <button onClick={() => handleHideComment(comment.id)} className="comment-reply-btn">
-                  ✕ Hide
-                </button>
-              </div>
-              
-              {showReplyInput && (
-                <div className="reply-input-container">
-                  <div style={{ flex: 1 }}>
-                    <textarea 
-                      value={localReplyText} 
-                      onChange={(e) => setLocalReplyText(e.target.value)} 
-                      placeholder={`Reply to ${comment.user_name}... (Use @username to mention)`} 
-                      rows="2" 
-                      className="reply-textarea"
-                    />
-                    <div style={{ marginTop: '8px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px' }}>Score (0-100):</label>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        value={localScore} 
-                        onChange={(e) => setLocalScore(parseInt(e.target.value))}
-                        style={{ width: '150px', verticalAlign: 'middle' }}
-                      />
-                      <span style={{ 
-                        marginLeft: '8px', 
-                        fontSize: '12px',
-                        color: localScore >= 50 ? '#00ff88' : '#ff4444',
-                        fontWeight: 'bold'
-                      }}>
-                        {localScore}/100
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                    <button onClick={submitReply} className="btn primary" style={{ padding: '8px 16px', fontSize: '12px' }}>Post</button>
-                    <button onClick={() => setShowReplyInput(false)} className="btn" style={{ padding: '8px 16px', fontSize: '12px' }}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        {comment.replies && comment.replies.map(reply => (
-          <CommentComponent key={reply.id} comment={reply} depth={depth + 1} />
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
-      
-      {/* FIXED MEDIA SECTION WITH CLOSE ICON */}
-      <div style={{ background: '#000', width: '100%', maxHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        {mediaUrl && (
-          isVideo ? (
-            <VideoPlayer src={mediaUrl} subtitle={subtitleData} />
-          ) : (
-            <img src={mediaUrl} alt={post.title} style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
-          )
-        )}
-        <Link 
-          to="/" 
-          className="btn" 
-          style={{ 
-            position: 'absolute', 
-            top: '10px', 
-            right: '10px', 
-            background: 'rgba(0,0,0,0.7)', 
-            padding: '8px 12px', 
-            fontSize: '18px', 
-            zIndex: 10,
-            borderRadius: '50%',
-            width: '40px',
-            height: '40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          ✕
-        </Link>
-      </div>
-
-      {/* SCROLLABLE INTERACTION & COMMENTS SECTION */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        
-        {/* Post Info */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <div className="user-avatar">
-              {posterName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontWeight: 'bold' }}>{posterName}</span>
-                {countryData.flag && <img src={countryData.flag} alt="" style={{ width: '20px', height: '15px' }} />}
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{timeAgo}</span>
-            </div>
-          </div>
-          <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{post.title}</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.5' }}>{post.description}</p>
-          {post.url && (
-            <a href={post.url} target="_blank" rel="noopener noreferrer" className="tap-in-btn" style={{ marginTop: '12px', display: 'inline-block' }}>
-              Tap in
-            </a>
-          )}
-        </div>
-
-        {/* Interaction Bar */}
-        <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '14px' }}>⭐ {avgRating.toFixed(1)}</span>
-              <span style={{ fontSize: '14px' }}>👁️ {views}</span>
-              <span style={{ fontSize: '14px' }}>💬 {commentCount}</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-around', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-            <button className="action-btn" onClick={() => setShowCommentModal(true)}>👍 Like</button>
-            <button className="action-btn" onClick={() => setShowCommentModal(true)}>💬 Comment</button>
-            <button className="action-btn">📤 Share</button>
-          </div>
-        </div>
-
-        {/* Comment List */}
-        <div>
-          <p style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '16px', color: 'var(--text-muted)' }}>Most relevant ⌵</p>
-          {topComments.length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>No comments yet. Be the first to comment!</p>
-          ) : (
-            topComments.map(comment => <CommentComponent key={comment.id} comment={comment} depth={0} />)
-          )}
-        </div>
-      </div>
-
-      {/* FIXED INPUT BAR */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--card-bg)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '24px', padding: '8px 16px' }}>
-          <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '14px' }}>
-            {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
-          </div>
-          <input 
-            type="text" 
-            placeholder={`Comment as ${currentUser?.name || 'Guest'}... (Use @username to mention)`} 
-            onClick={() => {
-              const session = getUserSession();
-              if (!session.user) {
-                alert('Please login to comment');
-              } else {
-                setShowCommentModal(true);
-              }
-            }}
-            readOnly
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px' }}
-          />
-          <div style={{ display: 'flex', gap: '12px', fontSize: '20px' }}>
-            <span>📷</span>
-            <span>😊</span>
-          </div>
-        </div>
-      </div>
-
-      {showCommentModal && (
-        <CommentModal
-          post={post}
-          currentUser={currentUser}
-          onClose={() => setShowCommentModal(false)}
-          onSuccess={handleAddComment}
-        />
-      )}
+// Add this in the JSX for replies (replace the rating section)
+{isReply ? (
+  <div className="form-group">
+    <label>Score (0-100) *</label>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <input 
+        type="range" 
+        min="0" 
+        max="100" 
+        value={score} 
+        onChange={(e) => setScore(parseInt(e.target.value))}
+        style={{ flex: 1 }}
+      />
+      <span style={{ 
+        fontSize: '18px', 
+        fontWeight: 'bold',
+        color: score >= 50 ? '#00ff88' : '#ff4444'
+      }}>
+        {score}/100
+      </span>
     </div>
-  );
-}
+    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>
+      Score appears with color: <span style={{ color: '#00ff88' }}>Green (≥50)</span> or <span style={{ color: '#ff4444' }}>Red (&lt;50)</span>
+    </div>
+  </div>
+) : (
+  <div className="form-group">
+    <label>Your Rating *</label>
+    <div className="rating-stars" style={{ justifyContent: 'center', margin: '15px 0' }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`star ${rating >= star ? 'selected' : ''}`}
+          onClick={() => !loading && handleRatingClick(star)}
+          style={{ cursor: loading ? 'not-allowed' : 'pointer', fontSize: '32px' }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  </div>
+)}
 
-export default PostDetail;
+// In handleSubmit, include score in reply data
+if (isReply) {
+  const replyData = {
+    parent_id: parentComment.id,
+    user_name: userName.trim(),
+    user_age: birthYear,
+    user_country: selectedCountry,
+    profile_picture: profilePictureBase64,
+    comment: comment.trim(),
+    media_url: mediaUrl.trim() || null,
+    score: score
+  };
+  result = await addCommentReply(replyData);
+}
