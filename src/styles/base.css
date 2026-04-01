@@ -1041,3 +1041,43 @@ body {
     margin-left: 20px !important;
   }
 }
+
+
+
+
+/* Mention styles */
+.mention {
+  color: #3a86ff;
+  font-weight: bold;
+  text-shadow: 0 0 5px rgba(58, 134, 255, 0.5);
+  cursor: pointer;
+  background: rgba(58, 134, 255, 0.1);
+  border-radius: 12px;
+  padding: 2px 6px;
+  margin: 0 2px;
+  transition: all 0.2s ease;
+}
+
+.mention:hover {
+  background: rgba(58, 134, 255, 0.3);
+  text-shadow: 0 0 8px rgba(58, 134, 255, 0.8);
+}
+
+/* Score display */
+.score-high {
+  color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.score-low {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
