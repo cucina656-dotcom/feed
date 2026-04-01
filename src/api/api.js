@@ -1,3 +1,4 @@
+// src/api/api.js
 const API_BASE = 'https://modekit.cucina656.workers.dev';
 
 async function apiCall(endpoint, options = {}) {
@@ -46,9 +47,7 @@ export async function getComments(postId) {
   return apiCall(`/api/comments?post_id=${encodeURIComponent(postId)}`);
 }
 
-export async function getRatings(postId) {
-  return apiCall(`/api/ratings?post_id=${encodeURIComponent(postId)}`);
-}
+// REMOVED: getRatings function
 
 export async function incrementViews(postId) {
   return apiCall('/api/post/view', {
@@ -128,7 +127,6 @@ export async function adminGetPendingRecoveries(adminToken) {
   });
 }
 
-// NEW: Add reply to comment
 export async function addCommentReply(data) {
   return apiCall('/api/comment/reply', {
     method: 'POST',
@@ -137,7 +135,6 @@ export async function addCommentReply(data) {
   });
 }
 
-// NEW: Hide comment
 export async function hideComment(commentId) {
   return apiCall('/api/comment/hide', {
     method: 'POST',
