@@ -1,7 +1,8 @@
-// src/components/CommentModal.jsx - Score for both new comments and replies
+// src/components/CommentModal.jsx - Updated to use ScoreReplyCard
 import React, { useState, useRef, useEffect } from 'react';
 import { addCommentWithRating, addCommentReply } from '../api/api';
 import { countries, getCountryByCode } from '../utils/countries';
+import ScoreReplyCard from './ScoreReplyCard';
 
 function CommentModal({ post, currentUser, isReply = false, parentComment = null, onClose, onSuccess }) {
   const [userName, setUserName] = useState(currentUser?.name || '');
@@ -9,21 +10,32 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
   const [selectedCountry, setSelectedCountry] = useState('');
   const [profilePicture, setProfilePicture] = useState(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState('');
-  const [score, setScore] = useState(50); // Score 0-100 for ALL comments
+  const [score, setScore] = useState(50);
   const [comment, setComment] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [targetUser, setTargetUser] = useState(parentComment?.user_name || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState('');
   
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
+  const commentInputRef = useRef(null);
 
   const filteredCountries = countries.filter(country =>
     country.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    // If this is a reply to a comment, set target user
+    if (parentComment) {
+      setTargetUser(parentComment.user_name);
+    }
+  }, [parentComment]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -52,12 +64,36 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
   };
 
   const getScoreColor = (scoreValue) => {
-    if (scoreValue >= 50) return '#00ff88';
+    if (scoreValue >= 70) return '#00ff88';
+    if (scoreValue >= 40) return '#ffaa44';
     return '#ff4444';
   };
 
+  const handleCommentChange = (e) => {
+    const value = e.target.value;
+    setComment(value);
+    
+    // Check for @ mention
+    const lastWord = value.split(' ').pop();
+    if (lastWord.startsWith('@') && lastWord.length > 1) {
+      setMentionSearch(lastWord.substring(1));
+      setShowMentionSuggestions(true);
+    } else {
+      setShowMentionSuggestions(false);
+    }
+  };
+
+  const handleMentionSelect = (username) => {
+    const words = comment.split(' ');
+    words.pop();
+    const newComment = words.join(' ') + (words.length ? ' ' : '') + `@${username} `;
+    setComment(newComment);
+    setTargetUser(username);
+    setShowMentionSuggestions(false);
+    commentInputRef.current?.focus();
+  };
+
   const handleSubmit = async () => {
-    // Validation
     if (!userName.trim()) {
       setError('Please enter your name');
       return;
@@ -101,7 +137,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
       let result;
       
       if (isReply && parentComment) {
-        // Reply - uses addCommentReply with score
+        // Reply with score - includes target_user
         const replyData = {
           parent_id: parentComment.id,
           user_name: userName.trim(),
@@ -110,20 +146,22 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
           profile_picture: profilePictureBase64,
           comment: comment.trim(),
           media_url: mediaUrl.trim() || null,
-          score: score
+          score: score,
+          target_user: targetUser || parentComment.user_name
         };
         result = await addCommentReply(replyData);
       } else {
-        // New comment - uses addCommentWithRating with score (replacing rating)
+        // New comment
         const commentData = {
           post_id: post.id,
           user_name: userName.trim(),
           user_age: birthYear,
           user_country: selectedCountry,
           profile_picture: profilePictureBase64,
-          rating: score, // Using score field
+          rating: score,
           comment: comment.trim(),
           media_url: mediaUrl.trim() || null,
+          target_user: targetUser
         };
         result = await addCommentWithRating(commentData);
       }
@@ -157,6 +195,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
   };
 
   const selectedCountryData = getCountryByCode(selectedCountry);
+  const scoreCategory = score < 40 ? 'Low Match' : score >= 70 ? 'Good Match' : 'Average Match';
 
   return (
     <div
@@ -359,7 +398,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
           </div>
         </div>
 
-        {/* SCORE INPUT - Replaces stars for ALL comments (both new and replies) */}
+        {/* Score Input Section */}
         <div className="form-group">
           <label>Score (0-100) *</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px' }}>
@@ -385,17 +424,44 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
               {score}/100
             </span>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-            Score appears with: <span style={{ color: '#00ff88' }}>Green (≥50)</span> or <span style={{ color: '#ff4444' }}>Red (&lt;50)</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+            <span style={{ 
+              background: score < 40 ? 'rgba(255,68,68,0.15)' : score >= 70 ? 'rgba(0,255,136,0.15)' : 'rgba(255,170,68,0.15)',
+              color: getScoreColor(score),
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {scoreCategory}
+            </span>
           </div>
         </div>
+
+        {/* Target User (for replies) */}
+        {isReply && (
+          <div className="form-group">
+            <label>Replying to (optional)</label>
+            <input
+              type="text"
+              value={targetUser}
+              onChange={(e) => setTargetUser(e.target.value)}
+              placeholder="@username you're replying to"
+              disabled={loading}
+            />
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>
+              This will show as "Rated @{targetUser || 'username'}"
+            </div>
+          </div>
+        )}
 
         {/* Comment Section */}
         <div className="form-group">
           <label>Your {isReply ? 'Reply' : 'Comment'} *</label>
           <textarea
+            ref={commentInputRef}
             value={comment}
-            onChange={(e) => setComment(e.target.value)}
+            onChange={handleCommentChange}
             placeholder={isReply ? "Write your reply... (Use @username to mention someone)" : "Write your thoughts about this post... (Use @username to mention someone)"}
             rows="4"
             disabled={loading}
