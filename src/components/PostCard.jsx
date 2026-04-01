@@ -1,4 +1,4 @@
-// src/components/PostCard.jsx
+// src/components/PostCard.jsx - Show score instead of rating
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
@@ -11,7 +11,6 @@ function PostCard({ post, currentUser, onView, onComment }) {
   const [showFullDescription, setShowFullDescription] = useState(false);
 
   useEffect(() => {
-    // Fetch real view count if available
     const fetchViews = async () => {
       try {
         const data = await getViews(post.id);
@@ -19,7 +18,6 @@ function PostCard({ post, currentUser, onView, onComment }) {
           setViews(data.views);
         }
       } catch (err) {
-        // Use default or existing view count
         console.error('Error fetching views:', err);
       }
     };
@@ -30,17 +28,15 @@ function PostCard({ post, currentUser, onView, onComment }) {
   const posterName = post.poster_name || post.user_name || 'Anonymous';
   const posterCountry = post.poster_country || post.country || 'Unknown';
   const commentCount = post.comments || 0;
-  const ratingCount = post.ratings || 0;
-  const avgRating = post.avg_rating || 0;
+  const avgScore = post.avg_rating || 0; // avg_rating now holds average score
 
-  // Get country flag
   const countryData = getCountryByCode(posterCountry) || { flag: null, name: posterCountry };
   
-  // Generate stars display
-  const fullStars = Math.floor(avgRating);
-  const starsDisplay = '★'.repeat(fullStars) + '☆'.repeat(5 - fullStars);
+  const getScoreColor = (score) => {
+    if (score >= 50) return '#00ff88';
+    return '#ff4444';
+  };
 
-  // Determine if media is video
   const isVideo = post.image_url && 
     post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
 
@@ -89,38 +85,40 @@ function PostCard({ post, currentUser, onView, onComment }) {
         </span>
       </div>
 
-     {/* Media Section */}
-{post.image_url && (
-  <div className="post-media">
-    {isVideo ? (
-      <VideoPlayer 
-        src={`https://modekit.cucina656.workers.dev${post.image_url}`} 
-        subtitle={{
-          text: post.subtitle_text,
-          start: post.subtitle_start,
-          duration: post.subtitle_duration,
-          color: post.subtitle_color,
-          size: post.subtitle_size,
-          position: post.subtitle_position
-        }}
-        onPlay={handleViewPost}
-      />
-    ) : (
-      <img 
-        src={`https://modekit.cucina656.workers.dev${post.image_url}`} 
-        alt={post.title} 
-        loading="lazy"
-        onClick={handleViewPost}
-      />
-    )}
-  </div>
-)}
+      {/* Media Section */}
+      {post.image_url && (
+        <div className="post-media">
+          {isVideo ? (
+            <VideoPlayer 
+              src={`https://modekit.cucina656.workers.dev${post.image_url}`}
+              subtitle={{
+                text: post.subtitle_text,
+                start: post.subtitle_start,
+                duration: post.subtitle_duration,
+                color: post.subtitle_color,
+                size: post.subtitle_size,
+                position: post.subtitle_position
+              }}
+              onPlay={handleViewPost}
+            />
+          ) : (
+            <img 
+              src={`https://modekit.cucina656.workers.dev${post.image_url}`}
+              alt={post.title} 
+              loading="lazy"
+              onClick={handleViewPost}
+            />
+          )}
+        </div>
+      )}
 
       <div className="post-info">
         <div className="post-stats">
           <span className="view-icon"> {views}</span>
           <span className="comment-icon"> {commentCount}</span>
-          <span className="rating-icon"> {avgRating.toFixed(1)} ({ratingCount})</span>
+          <span className="rating-icon" style={{ color: getScoreColor(avgScore) }}>
+            🎯 {avgScore.toFixed(1)}
+          </span>
         </div>
 
         <div className="post-title">
@@ -164,7 +162,7 @@ function PostCard({ post, currentUser, onView, onComment }) {
           className="action-btn"
           onClick={() => onComment && onComment(post)}
         >
-          <span>💬</span> Comment & Rate
+          <span>💬</span> Comment & Score
         </button>
         <Link 
           to={`/post?id=${encodeURIComponent(post.id)}`} 
