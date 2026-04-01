@@ -1,4 +1,4 @@
-// src/components/CommentModal.jsx
+// src/components/CommentModal.jsx - With Score Input for Replies
 import React, { useState, useRef, useEffect } from 'react';
 import { addCommentWithRating, addCommentReply } from '../api/api';
 import { countries, getCountryByCode } from '../utils/countries';
@@ -10,6 +10,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
   const [profilePicture, setProfilePicture] = useState(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState('');
   const [rating, setRating] = useState(0);
+  const [score, setScore] = useState(50); // NEW: Score for replies (0-100)
   const [comment, setComment] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,6 +79,12 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
       return;
     }
     
+    // Validate score for replies
+    if (isReply && (score < 0 || score > 100)) {
+      setError('Please enter a valid score (0-100)');
+      return;
+    }
+    
     // Only require rating for new comments, not for replies
     if (!isReply && rating === 0) {
       setError('Please rate this post (1-5 stars)');
@@ -106,7 +113,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
       let result;
       
       if (isReply && parentComment) {
-        // This is a reply - use addCommentReply API
+        // This is a reply - use addCommentReply API with SCORE
         const replyData = {
           parent_id: parentComment.id,
           user_name: userName.trim(),
@@ -115,6 +122,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
           profile_picture: profilePictureBase64,
           comment: comment.trim(),
           media_url: mediaUrl.trim() || null,
+          score: score  // NEW: Include score for replies
         };
         result = await addCommentReply(replyData);
       } else {
@@ -162,6 +170,12 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
   };
 
   const selectedCountryData = getCountryByCode(selectedCountry);
+  
+  // Get color for score display
+  const getScoreColor = (scoreValue) => {
+    if (scoreValue >= 50) return '#00ff88';
+    return '#ff4444';
+  };
 
   return (
     <div
@@ -364,7 +378,7 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
           </div>
         </div>
 
-        {/* Rating Section - Only show for new comments, not for replies */}
+        {/* Rating Section - For new comments (stars) */}
         {!isReply && (
           <div className="form-group">
             <label>Your Rating *</label>
@@ -383,17 +397,53 @@ function CommentModal({ post, currentUser, isReply = false, parentComment = null
           </div>
         )}
 
+        {/* Score Section - For replies (0-100 slider) */}
+        {isReply && (
+          <div className="form-group">
+            <label>Score (0-100) *</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px' }}>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value={score} 
+                onChange={(e) => setScore(parseInt(e.target.value))}
+                style={{ flex: 1, height: '8px', borderRadius: '4px', cursor: 'pointer' }}
+                disabled={loading}
+              />
+              <span style={{ 
+                fontSize: '24px', 
+                fontWeight: 'bold',
+                color: getScoreColor(score),
+                minWidth: '60px',
+                textAlign: 'center',
+                background: 'rgba(0,0,0,0.3)',
+                padding: '4px 12px',
+                borderRadius: '20px'
+              }}>
+                {score}/100
+              </span>
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+              Score appears with: <span style={{ color: '#00ff88' }}>Green (≥50)</span> or <span style={{ color: '#ff4444' }}>Red (&lt;50)</span>
+            </div>
+          </div>
+        )}
+
         {/* Comment Section */}
         <div className="form-group">
           <label>Your {isReply ? 'Reply' : 'Comment'} *</label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={isReply ? "Write your reply..." : "Write your thoughts about this post..."}
+            placeholder={isReply ? "Write your reply... (Use @username to mention someone)" : "Write your thoughts about this post... (Use @username to mention someone)"}
             rows="4"
             disabled={loading}
             style={{ resize: 'vertical' }}
           />
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '5px' }}>
+            💡 Type @ followed by username to mention someone (e.g., @John)
+          </div>
         </div>
 
         <div className="form-group">
