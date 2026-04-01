@@ -1,12 +1,12 @@
-// src/components/AdminDashboard.jsx
+// src/components/AdminDashboard.jsx - Show score instead of rating
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  adminGetAllUsers, 
-  adminGetAllPosts, 
+import {
+  adminGetAllUsers,
+  adminGetAllPosts,
   adminGetAllComments,
-  adminDeletePost, 
-  adminBlockUser, 
+  adminDeletePost,
+  adminBlockUser,
   adminUnblockUser,
   adminDeleteComment,
   adminCompleteRecovery,
@@ -42,7 +42,6 @@ function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     setError('');
-    
     try {
       if (activeTab === 'posts') {
         const data = await adminGetAllPosts();
@@ -121,6 +120,11 @@ function AdminDashboard() {
   const handleLogout = () => {
     clearAdminSession();
     navigate('/admin');
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 50) return '#00ff88';
+    return '#ff4444';
   };
 
   if (loading && activeTab === 'posts') {
@@ -204,6 +208,7 @@ function AdminDashboard() {
                         <th style={{ padding: '10px', textAlign: 'left' }}>User</th>
                         <th style={{ padding: '10px', textAlign: 'left' }}>WhatsApp</th>
                         <th style={{ padding: '10px', textAlign: 'left' }}>Country</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Avg Score</th>
                         <th style={{ padding: '10px', textAlign: 'left' }}>Created</th>
                         <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
                       </tr>
@@ -211,6 +216,7 @@ function AdminDashboard() {
                     <tbody>
                       {posts.map((post) => {
                         const countryData = getCountryByCode(post.country);
+                        const avgScore = post.avg_rating || 0;
                         return (
                           <tr key={post.id} style={{ borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '10px' }}>
@@ -223,6 +229,11 @@ function AdminDashboard() {
                                 <img src={countryData.flag} alt="" style={{ width: '20px', height: '15px', marginRight: '5px' }} />
                               )}
                               {post.country || 'Unknown'}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              <span style={{ color: getScoreColor(avgScore), fontWeight: 'bold' }}>
+                                {avgScore.toFixed(1)}/100
+                              </span>
                             </td>
                             <td style={{ padding: '10px' }}>{formatDate(post.created_at)}</td>
                             <td style={{ padding: '10px' }}>
@@ -247,7 +258,72 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* Users Tab */}
+          {/* Comments Tab - Show Score instead of Rating */}
+          {activeTab === 'comments' && (
+            <div>
+              <h3 style={{ marginBottom: '20px' }}>All Comments</h3>
+              {comments.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>No comments found</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>User</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Score</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Comment</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Post</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Date</th>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comments.map((comment) => (
+                        <tr key={comment.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '10px' }}>
+                            {comment.user_name}
+                            {comment.user_age && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Age: {new Date().getFullYear() - comment.user_age}</div>}
+                          </td>
+                          <td style={{ padding: '10px' }}>
+                            <span style={{ 
+                              color: getScoreColor(comment.score || 0), 
+                              fontWeight: 'bold',
+                              fontSize: '16px'
+                            }}>
+                              {comment.score || 0}/100
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px', maxWidth: '300px' }}>
+                            {comment.comment?.substring(0, 100)}{comment.comment?.length > 100 ? '...' : ''}
+                            {comment.media_url && (
+                              <div><a href={comment.media_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--secondary)' }}>🔗 Link</a></div>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px' }}>
+                            <Link to={`/post?id=${comment.post_id}`} target="_blank" style={{ color: 'var(--secondary)' }}>
+                              View Post
+                            </Link>
+                          </td>
+                          <td style={{ padding: '10px' }}>{formatDate(comment.created_at)}</td>
+                          <td style={{ padding: '10px' }}>
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="btn"
+                              style={{ padding: '5px 10px', fontSize: '12px', background: 'rgba(255,0,110,0.2)' }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Users Tab - Unchanged */}
           {activeTab === 'users' && (
             <div>
               <h3 style={{ marginBottom: '20px' }}>All Users</h3>
@@ -304,66 +380,7 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* Comments Tab */}
-          {activeTab === 'comments' && (
-            <div>
-              <h3 style={{ marginBottom: '20px' }}>All Comments</h3>
-              {comments.length === 0 ? (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>No comments found</p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>User</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Rating</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Comment</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Post</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Date</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {comments.map((comment) => (
-                        <tr key={comment.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={{ padding: '10px' }}>
-                            {comment.user_name}
-                            {comment.user_age && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Age: {new Date().getFullYear() - comment.user_age}</div>}
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            {'★'.repeat(comment.rating)}{'☆'.repeat(5 - comment.rating)}
-                          </td>
-                          <td style={{ padding: '10px', maxWidth: '300px' }}>
-                            {comment.comment?.substring(0, 100)}{comment.comment?.length > 100 ? '...' : ''}
-                            {comment.media_url && (
-                              <div><a href={comment.media_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--secondary)' }}>🔗 Link</a></div>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            <Link to={`/post?id=${comment.post_id}`} target="_blank" style={{ color: 'var(--secondary)' }}>
-                              View Post
-                            </Link>
-                          </td>
-                          <td style={{ padding: '10px' }}>{formatDate(comment.created_at)}</td>
-                          <td style={{ padding: '10px' }}>
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              className="btn"
-                              style={{ padding: '5px 10px', fontSize: '12px', background: 'rgba(255,0,110,0.2)' }}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PIN Recovery Tab */}
+          {/* PIN Recovery Tab - Unchanged */}
           {activeTab === 'recoveries' && (
             <div>
               <h3 style={{ marginBottom: '20px' }}>Pending PIN Recovery Requests</h3>
@@ -408,7 +425,6 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
       {confirmDelete && (
         <div style={{
           position: 'fixed',
