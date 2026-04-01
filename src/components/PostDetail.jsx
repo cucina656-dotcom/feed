@@ -1,9 +1,9 @@
-// src/components/PostDetail.jsx - COMPLETE FIXED VERSION
+// src/components/PostDetail.jsx - Reply uses same CommentModal
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import CommentModal from './CommentModal';
-import { getPosts, getComments, incrementViews, getViews, addCommentReply, hideComment, userLogin, saveUserSession } from '../api/api';
+import { getPosts, getComments, getRatings, incrementViews, getViews, addCommentReply, hideComment } from '../api/api';
 import { getTimeAgo } from '../utils/time';
 import { getCountryByCode } from '../utils/countries';
 import { getUserSession } from '../api/api';
@@ -16,16 +16,12 @@ function PostDetail({ currentUser, setCurrentUser }) {
   
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [views, setViews] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [replyToComment, setReplyToComment] = useState(null);
-  const [loginPhone, setLoginPhone] = useState('');
-  const [loginPin, setLoginPin] = useState(['', '', '', '', '', '']);
-  const [loginError, setLoginError] = useState('');
-  const [pendingReply, setPendingReply] = useState(null);
 
   useEffect(() => {
     if (!postId) {
@@ -49,6 +45,8 @@ function PostDetail({ currentUser, setCurrentUser }) {
         setViews(viewsData?.views || foundPost.view_count || 0);
         const commentsData = await getComments(postId);
         setComments(commentsData.comments || []);
+        const ratingsData = await getRatings(postId);
+        setRatings(ratingsData.ratings || []);
       } catch (err) {
         console.error('Error loading post:', err);
         setError('Failed to load post');
@@ -64,74 +62,17 @@ function PostDetail({ currentUser, setCurrentUser }) {
     setComments(commentsData.comments || []);
   };
 
-  const handleLoginPinChange = (index, value) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
-      const newPin = [...loginPin];
-      newPin[index] = value;
-      setLoginPin(newPin);
-      if (value && index < 5) {
-        const nextInput = document.getElementById(`reply-login-pin-${index + 1}`);
-        if (nextInput) nextInput.focus();
-      }
-    }
-  };
-
-  const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
-      const prevInput = document.getElementById(`reply-login-pin-${index - 1}`);
-      if (prevInput) prevInput.focus();
-    }
-  };
-
-  const handleLoginSubmit = async () => {
-    const phoneNumber = loginPhone.startsWith('+') ? loginPhone : '+' + loginPhone;
-    const pinValue = loginPin.join('');
-    
-    if (!phoneNumber || pinValue.length !== 6) {
-      setLoginError('Please enter valid phone and 6-digit PIN');
-      return;
-    }
-    
-    try {
-      const result = await userLogin(phoneNumber, pinValue);
-      if (result.ok) {
-        saveUserSession(result.user, result.token);
-        if (setCurrentUser) setCurrentUser(result.user);
-        
-        if (pendingReply) {
-          setReplyToComment(pendingReply);
-          setShowCommentModal(true);
-          setPendingReply(null);
-        }
-        
-        setShowLoginModal(false);
-        setLoginPhone('');
-        setLoginPin(['', '', '', '', '', '']);
-        setLoginError('');
-      } else {
-        setLoginError(result.error || 'Login failed');
-      }
-    } catch (err) {
-      setLoginError('Login failed. Please try again.');
-    }
-  };
-
-  const handleReply = (comment) => {
-    const session = getUserSession();
-    if (!session.user) {
-      setPendingReply(comment);
-      setShowLoginModal(true);
-      return;
-    }
-    setReplyToComment(comment);
+  const handleReply = (parentComment) => {
+    setReplyToComment(parentComment);
     setShowCommentModal(true);
   };
 
   const handleReplySubmit = async (commentData) => {
     const session = getUserSession();
     if (!session.user) {
-      setShowLoginModal(true);
-      return false;
+      alert('Please login first');
+      setShowCommentModal(false);
+      return;
     }
     
     const replyData = {
@@ -140,27 +81,25 @@ function PostDetail({ currentUser, setCurrentUser }) {
       user_age: commentData.user_age,
       user_country: commentData.user_country,
       profile_picture: commentData.profile_picture,
+      rating: 0, // Replies don't have ratings
       comment: commentData.comment,
-      media_url: commentData.media_url,
-      score: commentData.score
+      media_url: commentData.media_url
     };
     
     try {
       await addCommentReply(replyData);
       setReplyToComment(null);
-      await handleCommentAdded();
-      return true;
+      handleCommentAdded();
     } catch (err) {
       console.error('Reply error:', err);
       alert('Failed to post reply');
-      return false;
     }
   };
 
   const handleHideComment = async (commentId) => {
     const session = getUserSession();
     if (!session.user) {
-      setShowLoginModal(true);
+      alert('Please login to hide comments');
       return;
     }
     try {
@@ -169,28 +108,6 @@ function PostDetail({ currentUser, setCurrentUser }) {
     } catch (err) {
       console.error('Hide error:', err);
     }
-  };
-
-  // Parse mentions from text
-  const parseMentions = (text) => {
-    const mentionRegex = /@(\w+)/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = mentionRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
-      }
-      parts.push({ type: 'mention', content: match[0], username: match[1] });
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex < text.length) {
-      parts.push({ type: 'text', content: text.substring(lastIndex) });
-    }
-
-    return parts;
   };
 
   if (loading) {
@@ -216,6 +133,8 @@ function PostDetail({ currentUser, setCurrentUser }) {
   const posterCountry = post.poster_country || post.country || 'Unknown';
   const timeAgo = getTimeAgo(post.created_at);
   const commentCount = comments.length;
+  const ratingCount = ratings.length;
+  const avgRating = post.avg_rating || 0;
   const countryData = getCountryByCode(posterCountry) || { flag: null };
   const mediaUrl = post.image_url ? `${WORKER_URL}${post.image_url}` : null;
   const isVideo = mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)$/);
@@ -246,89 +165,42 @@ function PostDetail({ currentUser, setCurrentUser }) {
     }
   });
 
-  // Comment Component
+  // Recursive Comment Component
   const CommentComponent = ({ comment, depth = 0 }) => {
+    const [showReplyInput, setShowReplyInput] = useState(false);
     const commentCountryData = getCountryByCode(comment.user_country) || { flag: null };
     const commentAge = comment.user_age ? new Date().getFullYear() - comment.user_age : null;
-    const parsedComment = parseMentions(comment.comment);
     
-    const getScoreColor = (score) => {
-      if (score >= 50) return '#00ff88';
-      return '#ff4444';
-    };
-
     return (
       <div style={{ marginLeft: depth > 0 ? '44px' : '0', marginBottom: '12px' }}>
-        <div className={`comment-card ${depth > 0 ? 'reply' : ''}`}>
+        <div className="comment-card" style={{ background: '#1a1a1a', borderRadius: '20px', padding: '12px' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <div className="comment-avatar">
+            <div className="comment-avatar" style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
               {comment.profile_picture ? (
-                <img src={comment.profile_picture} alt="" />
+                <img src={comment.profile_picture} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span>{comment.user_name?.charAt(0).toUpperCase() || '?'}</span>
+                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{comment.user_name?.charAt(0).toUpperCase() || '?'}</span>
               )}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="comment-name">{comment.user_name}</span>
-                {commentCountryData.flag && <img src={commentCountryData.flag} alt="" className="comment-flag" />}
-                {commentAge && <span className="comment-age">({commentAge} yrs)</span>}
-                <span className="comment-time">{getTimeAgo(comment.created_at)}</span>
+                <span style={{ fontWeight: 'bold', fontSize: '13px' }}>{comment.user_name}</span>
+                {commentCountryData.flag && <img src={commentCountryData.flag} alt="" style={{ width: '16px', height: '12px' }} />}
+                {commentAge && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({commentAge} yrs)</span>}
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{getTimeAgo(comment.created_at)}</span>
               </div>
-              
-              {/* Score Display */}
-              {comment.score !== undefined && comment.score > 0 && (
-                <div style={{ marginTop: '4px', marginBottom: '6px' }}>
-                  <span style={{ 
-                    fontSize: '12px', 
-                    fontWeight: 'bold',
-                    color: getScoreColor(comment.score),
-                    background: 'rgba(0,0,0,0.3)',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    display: 'inline-block'
-                  }}>
-                    Score: {comment.score}/100
-                  </span>
-                </div>
-              )}
-              
-              {/* Comment with mentions */}
-              <div className="comment-text">
-                {parsedComment.map((part, idx) => {
-                  if (part.type === 'mention') {
-                    return (
-                      <span 
-                        key={idx} 
-                        className="mention"
-                        style={{
-                          color: '#3a86ff',
-                          fontWeight: 'bold',
-                          textShadow: '0 0 5px rgba(58,134,255,0.5)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        👉 {part.content}
-                      </span>
-                    );
-                  }
-                  return <span key={idx}>{part.content}</span>;
-                })}
+              <div style={{ display: 'flex', gap: '2px', marginTop: '4px' }}>
+                {[1,2,3,4,5].map(star => (
+                  <span key={star} style={{ fontSize: '11px', color: star <= comment.rating ? 'var(--accent)' : 'rgba(255,255,255,0.3)' }}>★</span>
+                ))}
               </div>
-              
+              <div style={{ fontSize: '14px', marginTop: '6px', lineHeight: '1.4' }}>{comment.comment}</div>
               {comment.media_url && (
-                <a href={comment.media_url} target="_blank" rel="noopener noreferrer" className="comment-media-link">
-                  🔗 Media Link
-                </a>
+                <a href={comment.media_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--secondary)', display: 'inline-block', marginTop: '6px' }}>🔗 Media Link</a>
               )}
-              
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                <button onClick={() => handleReply(comment)} className="comment-reply-btn">
-                  💬 Reply
-                </button>
-                <button onClick={() => handleHideComment(comment.id)} className="comment-reply-btn">
-                  ✕ Hide
-                </button>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px' }}>
+                <button onClick={() => handleReply(comment)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Reply</button>
+                <button onClick={() => handleHideComment(comment.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Hide</button>
               </div>
             </div>
           </div>
@@ -342,44 +214,6 @@ function PostDetail({ currentUser, setCurrentUser }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
-      
-      {/* LOGIN MODAL */}
-      {showLoginModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: 'var(--card-gradient)', borderRadius: '24px', padding: '30px', maxWidth: '400px', width: '90%', border: '1px solid var(--border)' }}>
-            <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>🔑 Login Required</h3>
-            <p style={{ marginBottom: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Please login to reply or interact with comments</p>
-            
-            {loginError && <div className="alert alert-danger" style={{ marginBottom: '15px' }}>❌ {loginError}</div>}
-            
-            <div className="form-group">
-              <label>WhatsApp Number</label>
-              <input type="tel" value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="2507..." />
-            </div>
-            
-            <div className="form-group">
-              <label>6-digit PIN</label>
-              <div className="pin-input-container">
-                {loginPin.map((digit, idx) => (
-                  <input key={idx} id={`reply-login-pin-${idx}`} type="tel" maxLength="1" className="pin-digit" value={digit} onChange={(e) => handleLoginPinChange(idx, e.target.value)} onKeyDown={(e) => handleKeyDown(e, idx)} pattern="[0-9]" />
-                ))}
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button className="btn primary" style={{ flex: 1 }} onClick={handleLoginSubmit}>Login</button>
-              <button className="btn" style={{ flex: 1 }} onClick={() => {
-                setShowLoginModal(false);
-                setPendingReply(null);
-              }}>Cancel</button>
-            </div>
-            
-            <div style={{ textAlign: 'center', marginTop: '15px' }}>
-              <Link to="/create" style={{ color: 'var(--secondary)', fontSize: '12px' }}>Don't have an account? Create one</Link>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* FIXED MEDIA SECTION WITH CLOSE ICON */}
       <div style={{ background: '#000', width: '100%', maxHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -419,7 +253,7 @@ function PostDetail({ currentUser, setCurrentUser }) {
         {/* Post Info */}
         <div style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <div className="user-avatar">
+            <div className="user-avatar" style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent), var(--secondary))', borderRadius: '50%' }}>
               {posterName.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -443,6 +277,7 @@ function PostDetail({ currentUser, setCurrentUser }) {
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '14px' }}>⭐ {avgRating.toFixed(1)}</span>
               <span style={{ fontSize: '14px' }}>👁️ {views}</span>
               <span style={{ fontSize: '14px' }}>💬 {commentCount}</span>
             </div>
@@ -451,12 +286,12 @@ function PostDetail({ currentUser, setCurrentUser }) {
             <button className="action-btn" onClick={() => {
               setReplyToComment(null);
               setShowCommentModal(true);
-            }}>👍 Like</button>
+            }} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>👍 Like</button>
             <button className="action-btn" onClick={() => {
               setReplyToComment(null);
               setShowCommentModal(true);
-            }}>💬 Comment</button>
-            <button className="action-btn">📤 Share</button>
+            }} style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>💬 Comment</button>
+            <button className="action-btn" style={{ flex: 1, padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}>📤 Share</button>
           </div>
         </div>
 
@@ -474,31 +309,27 @@ function PostDetail({ currentUser, setCurrentUser }) {
       {/* FIXED INPUT BAR */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--card-bg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '24px', padding: '8px 16px' }}>
-          <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '14px' }}>
+          <div className="user-avatar" style={{ width: '32px', height: '32px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent), var(--secondary))', borderRadius: '50%' }}>
             {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           <input 
             type="text" 
-            placeholder={`Comment as ${currentUser?.name || 'Guest'}... (Use @username to mention)`} 
+            placeholder={`Comment as ${currentUser?.name || 'Guest'}...`} 
             onClick={() => {
-              const session = getUserSession();
-              if (!session.user) {
-                setShowLoginModal(true);
-              } else {
-                setReplyToComment(null);
-                setShowCommentModal(true);
-              }
+              setReplyToComment(null);
+              setShowCommentModal(true);
             }}
             readOnly
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px' }}
           />
           <div style={{ display: 'flex', gap: '12px', fontSize: '20px' }}>
-            <span>📷</span>
-            <span>😊</span>
+            <span style={{ cursor: 'pointer' }}>📷</span>
+            <span style={{ cursor: 'pointer' }}>😊</span>
           </div>
         </div>
       </div>
 
+      {/* Comment Modal - Same for both new comment and reply */}
       {showCommentModal && (
         <CommentModal
           post={post}
@@ -510,15 +341,13 @@ function PostDetail({ currentUser, setCurrentUser }) {
             setReplyToComment(null);
           }}
           onSuccess={async (commentData) => {
-            let success;
             if (replyToComment) {
-              success = await handleReplySubmit(commentData);
-            }
-            if (success) {
-              setShowCommentModal(false);
-              setReplyToComment(null);
+              await handleReplySubmit(commentData);
+            } else {
               await handleCommentAdded();
             }
+            setShowCommentModal(false);
+            setReplyToComment(null);
           }}
         />
       )}
