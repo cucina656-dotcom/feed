@@ -1,4 +1,4 @@
-// src/components/Feed.jsx
+// src/components/Feed.jsx - Score version
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import PostCard from './PostCard';
@@ -31,7 +31,6 @@ function Feed({ currentUser }) {
   }, [loadPosts]);
 
   const handleViewPost = async (post) => {
-    // Increment view count when post is viewed
     try {
       await incrementViews(post.id);
     } catch (err) {
@@ -50,7 +49,6 @@ function Feed({ currentUser }) {
   };
 
   const handleCommentAdded = () => {
-    // Refresh posts to update comment counts
     loadPosts();
   };
 
